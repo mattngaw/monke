@@ -18,7 +18,6 @@ const square INVALID_SQUARE = 64;
 const bitboard BITBOARD_EMPTY = 0;
 const bitboard BITBOARD_FULL = 0xFFFFFFFFFFFFFFFF;
 
-/** @brief Strings for quick conversion from squares */
 const char *SQUARES_TO_STRINGS[64] = {
     "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1",
     "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
@@ -30,19 +29,13 @@ const char *SQUARES_TO_STRINGS[64] = {
     "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
 };
 
-/** @brief The length of a rank */
 static const uint8_t RANK_LENGTH = 8;
 
-/** @brief The length of a file */
 static const uint8_t FILE_LENGTH = 8;
 
-/** @brief The length a bitboard word */
 static const uint8_t BITBOARD_SIZE = 64;
 
-/** 
- * @brief Masks used in divide-and-conquer algorithms regarding 64-bit words, 
- * e.g. bit-reversal, bit-counting
- */
+/* Masks used in divide-and-conquer algorithms regarding 64-bit words */
 static const uint64_t DQ1 = 0x5555555555555555;
 static const uint64_t DQ2 = 0x3333333333333333;
 static const uint64_t DQ3 = 0x0F0F0F0F0F0F0F0F;
@@ -92,7 +85,7 @@ file square_get_file(square s) {
 
 bitboard square_to_bitboard(square s) {
     if (s == INVALID_SQUARE) return BITBOARD_EMPTY;
-    bitboard b = (1UL << s) * (s < BITBOARD_SIZE);
+    bitboard b = 1UL << s;
     return b;
 }
 
@@ -119,7 +112,9 @@ square square_from_string(char *str) {
     dbg_requires(strlen(str) == 2);
     dbg_requires('a' <= str[0] && str[0] <= 'h');
     dbg_requires('1' <= str[1] && str[1] <= '8');
-    square s = square_calculate(rank_from_char(str[1]), file_from_char(str[0]));
+    rank r = rank_from_char(str[1]);
+    file f = file_from_char(str[0]);
+    square s = square_calculate(r, f);
     dbg_ensures(is_square(s));
     return s;
 }
@@ -142,7 +137,6 @@ bitboard bitboard_set(bitboard b, square s) {
     if (s >= BITBOARD_SIZE) {
         return b;
     }
-    dbg_requires(is_square(s));
     return b | (1UL << s);
 }
 
@@ -150,11 +144,11 @@ bitboard bitboard_reset(bitboard b, square s) {
     if (s >= BITBOARD_SIZE) {
         return b;
     }
-    dbg_requires(is_square(s));
     return b & ~(1UL << s);
 }
 
 square bitboard_to_square(bitboard b) {
+    dbg_requires(__builtin_popcountll(b) <= 1);
     if (b == 0) return INVALID_SQUARE;
     square s = __builtin_ctzll(b);
     dbg_ensures(is_square(s));
@@ -189,6 +183,7 @@ square bitboard_iter_last(bitboard *b) {
     return s;
 }
 
+/* Divide-and-conquer algorithm using bitmasks */
 bitboard bitboard_rotate(bitboard b) {
     b = ((b & DQ1) << 1) | ((b >> 1) & DQ1);
     b = ((b & DQ2) << 2) | ((b >> 2) & DQ2);
@@ -201,12 +196,17 @@ bitboard bitboard_rotate(bitboard b) {
 
 void bitboard_print(bitboard b) {
     char board[8][8];
+    
+    /* Build array of chars */
     for (int r = 0; r < RANK_LENGTH; r++) {
         for (int f = 0; f < FILE_LENGTH; f++) {
-            board[r][f] = b % 2 ? 'x' : '.';
-            b >>= 1;
+            square s = square_calculate(r,f);
+            bitboard s_bb = square_to_bitboard(s);
+            board[r][f] = b & s_bb ? 'x' : '.';
         }
     }
+
+    /* Print chars with appropriate spacing */
     for (int r = RANK_LENGTH - 1; r >= 0; r--) {
         for (int f = 0; f < FILE_LENGTH; f++) {
             printf("%c ", board[r][f]);
@@ -214,5 +214,6 @@ void bitboard_print(bitboard b) {
         printf("\n");
     }
     printf("\n");
+    
     return;
 }

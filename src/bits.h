@@ -1,6 +1,6 @@
 /**
  * @file bits.h
- * @brief Provides an interface for bitboards and squares.
+ * @brief Interface for squares and bitboards.
  */
 
 #ifndef _BITS_H_
@@ -16,21 +16,21 @@ typedef uint8_t rank;
 typedef uint8_t file;
 
 /** 
- * @brief A square on a chessboard, where a1, a2, ..., h7, h8 are mapped by the 
- * range from 0 to 63
+ * @brief A square on a chessboard
+ * 
+ * a1, a2, ..., h7, h8 are mapped by the range from 0 to 63
  */
 typedef uint8_t square;
 
 /** 
  * @brief A 64-bit word representing a set of squares
  * 
- * Used to represent piece locations, legal moves, attack maps, etc.
+ * Used to represent piece locations, attack maps, moves, etc.
+ * Bits increase in row/rank-major order
  */
 typedef uint64_t bitboard;
 
-/** 
- * @brief Global enumeration for easy square access
- */
+/** @brief Global enumeration for easy square access */
 typedef enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1,
     A2, B2, C2, D2, E2, F2, G2, H2,
@@ -42,12 +42,18 @@ typedef enum Square {
     A8, B8, C8, D8, E8, F8, G8, H8
 } Square;
 
+/** @brief An illegal square, used as an extraneous return value */
 extern const square INVALID_SQUARE;
 
 /** @brief Helpful bitboard constants */
 extern const bitboard BITBOARD_EMPTY;
 extern const bitboard BITBOARD_FULL;
 
+/** 
+ * @brief Maps squares to their string representation 
+ * 
+ * e.g. SQUARES_TO_STRINGS[A1] == "a1"
+ */
 extern const char *SQUARES_TO_STRINGS[64];
 
 /*
@@ -57,51 +63,71 @@ extern const char *SQUARES_TO_STRINGS[64];
  */
 
 /**
- * @brief Calculates a square given the rank and file.
+ * @brief Calculates a square given the rank and file
  * 
  * @param[in] r
  * @param[in] f
- * @return square 
+ * @pre 0 <= r, f < 8
+ * 
+ * @return s
+ * @post 0 <= s < 64
  */
 square square_calculate(rank r, file f);
 
 /**
- * @brief Calculates a rank given a square.
+ * @brief Calculates a rank given a square
  * 
  * @param[in] s 
- * @return rank 
+ * @pre 0 <= s < 64
+ * 
+ * @return r
+ * @post 0 <= r < 8
  */
 rank square_get_rank(square s);
 
 /**
- * @brief Calculates a file given a square.
+ * @brief Calculates a file given a square
  * 
- * @param[in] s
- * @return file 
+ * @param[in] s 
+ * @pre 0 <= s < 64
+ * 
+ * @return f
+ * @post 0 <= f < 8
  */
 file square_get_file(square s);
 
 /**
- * @brief Converts a square to a bitboard.
+ * @brief Converts a square to a bitboard
  * 
  * @param[in] s
- * @return bitboard 
+ * 
+ * @return b (if 0 <= s < 64, bitboard with only the sth bit set)
+ * @return b (otherwise BITBOARD_EMPTY)
  */
 bitboard square_to_bitboard(square s);
 
 /**
- * @brief Converts a square to its string equivalent.
+ * @brief Converts a square to its string equivalent
+ * 
+ * e.g. square_to_string(E4) == "e4"
  * 
  * @param[in] s
- * @return char* 
+ * @pre 0 <= s < 64
+ * 
+ * @return str (s in string form)
  */
 const char *square_to_string(square s);
 
 /**
- * @brief Converts a string to a square.
+ * @brief Converts a string to a square
  * 
  * @param[in] str
- * @return square 
+ * @pre len(str) == 2
+ * @pre 'a' <= str[0] <= 'h'
+ * @pre '1' <= str[1] <= '8'
+ * 
+ * @return s 
+ * @post 0 <= s < 64 
  */
 square square_from_string(char *str);
 
@@ -111,72 +137,122 @@ square square_from_string(char *str);
  * ---------------------------------------------------------------------------
  */
 
+/**
+ * @brief Checks if a bitboard is empty
+ * 
+ * @param[in] b
+ * 
+ * @return true if b == 0 else false
+ */
 bool bitboard_is_empty(bitboard b);
 
 /**
- * @brief Sets the s'th bit of b to true.
+ * @brief Sets the s'th bit of b to true
  * 
  * @param[in] b
  * @param[in] s
- * @return square 
+ * 
+ * @return b with s bit set to true
+ * @return b if s it not a valid square
  */
 bitboard bitboard_set(bitboard b, square s);
 
 /**
- * @brief Sets the s'th bit of b to false.
+ * @brief Sets the s'th bit of b to false
  * 
  * @param[in] b
  * @param[in] s
- * @return square 
+ * 
+ * @return b with s bit set to false
+ * @return b if s it not a valid square
  */
 bitboard bitboard_reset(bitboard b, square s);
 
 /**
- * @brief Converts a single bitboard to a square.
+ * @brief Converts a single bitboard to a square
  * 
  * @param[in] b
- * @return square 
+ * @pre popcount(b) <= 1
+ * 
+ * @return s
+ * @post 0 <= s < 64, or INVALID_SQUARE (iff b == 0)
  */
 square bitboard_to_square(bitboard b);
 
 /**
- * @brief Counts the number of bits in a bitboard.
+ * @brief Counts the number of bits in a bitboard
+ * 
+ * Makes use of the GCC builtin popcount
  * 
  * @param[in] b
- * @return uint8_t 
+ * 
+ * @return count (number of true bits)
+ * @post 0 <= count <= 64
  */
 uint8_t bitboard_count_bits(bitboard b);
 
 /**
- * @brief Gets the index of the least significant bit.
+ * @brief Gets the index of the least significant bit
+ * 
+ * BitScan Forward
+ * Makes use of the GCC builtin ctz (count trailing zeroes)
  * 
  * @param[in] b
- * @return square
+ * 
+ * @return s
+ * @post 0 <= s < 64, or INVALID_SQUARE (if b == 0)
  */
 square bitboard_bsf(bitboard b);
 
 /**
- * @brief Gets the index of the most significant bit.
+ * @brief Gets the index of the most significant bit
+ * 
+ * BitScan Reverse
+ * Makes use of the GCC builtin clz (count leading zeroes)
  * 
  * @param[in] b
- * @return square
+ * 
+ * @return s
+ * @post 0 <= s < 64, or INVALID_SQUARE (if b == 0)
  */
 square bitboard_bsr(bitboard b);
 
+/**
+ * @brief Pops and returns the place of the least-significant true bit
+ * 
+ * bsf and resets
+ * 
+ * @param[in] b
+ * 
+ * @return s 
+ * @post 0 <= s < 64, or INVALID_SQUARE (if b == 0)
+ */
 square bitboard_iter_first(bitboard *b);
 
+/**
+ * @brief Pops and returns the place of the most-significant true bit
+ * 
+ * bsf and resets
+ * 
+ * @param[in] b
+ * 
+ * @post 0 <= s < 64, or INVALID_SQUARE (if b == 0)
+ */
 square bitboard_iter_last(bitboard *b);
 
 /**
- * @brief Reverses the bits of a bitboard.
+ * @brief Reverses the bits of a bitboard, effectively rotating the board
  * 
  * @param[in] b
- * @return bitboard 
+ * 
+ * @return b_
+ * @post bitboard_rotate(b_) == b 
+ * 
  */
 bitboard bitboard_rotate(bitboard b);
 
 /**
- * @brief Prints a bitboard.
+ * @brief Prints a bitboard
  * 
  * @param[in] b
  */
