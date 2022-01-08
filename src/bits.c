@@ -9,19 +9,17 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
-/** @brief The length of a rank */
-static const uint8_t rank_length = 8;
+const square INVALID_SQUARE = 64;
 
-/** @brief The length of a file */
-static const uint8_t file_length = 8;
-
-/** @brief The length a bitboard word */
-static const uint8_t bitboard_length = 64;
+const bitboard BITBOARD_EMPTY = 0;
+const bitboard BITBOARD_FULL = 0xFFFFFFFFFFFFFFFF;
 
 /** @brief Strings for quick conversion from squares */
-static char *squares_to_strings[64] = {
+const char *SQUARES_TO_STRINGS[64] = {
     "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1",
     "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
     "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3",
@@ -31,6 +29,15 @@ static char *squares_to_strings[64] = {
     "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",
     "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
 };
+
+/** @brief The length of a rank */
+static const uint8_t RANK_LENGTH = 8;
+
+/** @brief The length of a file */
+static const uint8_t FILE_LENGTH = 8;
+
+/** @brief The length a bitboard word */
+static const uint8_t BITBOARD_SIZE = 64;
 
 /** 
  * @brief Masks used in divide-and-conquer algorithms regarding 64-bit words, 
@@ -58,7 +65,7 @@ static bool is_file(file f) {
 }
 
 static bool is_square(square s) {
-    return s < bitboard_length;
+    return s < BITBOARD_SIZE;
 }
 
 square square_calculate(rank r, file f) {
@@ -84,17 +91,14 @@ file square_get_file(square s) {
 }
 
 bitboard square_to_bitboard(square s) {
-    dbg_requires(is_square(s));
-    bitboard b = 0;
-    if (s >= 0) {
-        b = (bitboard)(1UL << s);
-    }
+    if (s == INVALID_SQUARE) return BITBOARD_EMPTY;
+    bitboard b = (1UL << s) * (s < BITBOARD_SIZE);
     return b;
 }
 
-char *square_to_string(square s) {
+const char *square_to_string(square s) {
     dbg_requires(is_square(s));
-    return squares_to_strings[s];
+    return SQUARES_TO_STRINGS[s];
 }
 
 static rank rank_from_char(char c) {
@@ -130,30 +134,59 @@ static bool bitboard_is_single(bitboard b) {
     return (b != 0) && ((b & (b - 1)) == 0);
 }
 
+bool bitboard_is_empty(bitboard b) {
+    return b == 0;
+}
+
 bitboard bitboard_set(bitboard b, square s) {
+    if (s >= BITBOARD_SIZE) {
+        return b;
+    }
     dbg_requires(is_square(s));
-    return b | square_to_bitboard(s);
+    return b | (1UL << s);
 }
 
 bitboard bitboard_reset(bitboard b, square s) {
+    if (s >= BITBOARD_SIZE) {
+        return b;
+    }
     dbg_requires(is_square(s));
-    return b & ~square_to_bitboard(s);
+    return b & ~(1UL << s);
 }
 
 square bitboard_to_square(bitboard b) {
-    dbg_requires(bitboard_is_single(b));
-    return bitboard_count_bits(b - 1);
+    if (b == 0) return INVALID_SQUARE;
+    square s = __builtin_ctzll(b);
+    dbg_ensures(is_square(s));
+    return s;
 }
 
 uint8_t bitboard_count_bits(bitboard b) {
-    b = (b & DQ1) + ((b & (DQ1 << 1)) >> 1);
-    b = (b & DQ2) + ((b & (DQ2 << 2)) >> 2);
-    b = (b & DQ3) + ((b & (DQ3 << 4)) >> 4);
-    b = (b & DQ4) + ((b & (DQ4 << 8)) >> 8);
-    b = (b & DQ5) + ((b & (DQ5 << 16)) >> 16);
-    b = (b & DQ6) + ((b & (DQ6 << 32)) >> 32);
-    dbg_ensures(b <= bitboard_length);
-    return b;
+    int count = __builtin_popcountll(b);
+    dbg_ensures(count <= BITBOARD_SIZE);
+    return (uint8_t) count;
+}
+
+square bitboard_bsf(bitboard b) {
+    if (b == 0) return INVALID_SQUARE;
+    return __builtin_ctzll(b);
+}
+
+square bitboard_bsr(bitboard b) {
+    if (b == 0) return INVALID_SQUARE;
+    return 63 - __builtin_clzll(b);
+}
+
+square bitboard_iter_first(bitboard *b) {
+    square s = bitboard_bsf(*b);
+    *b = bitboard_reset(*b, s);
+    return s;
+}
+
+square bitboard_iter_last(bitboard *b) {
+    square s = bitboard_bsr(*b);
+    *b = bitboard_reset(*b, s);
+    return s;
 }
 
 bitboard bitboard_rotate(bitboard b) {
@@ -168,14 +201,14 @@ bitboard bitboard_rotate(bitboard b) {
 
 void bitboard_print(bitboard b) {
     char board[8][8];
-    for (int r = 0; r < rank_length; r++) {
-        for (int f = 0; f < file_length; f++) {
+    for (int r = 0; r < RANK_LENGTH; r++) {
+        for (int f = 0; f < FILE_LENGTH; f++) {
             board[r][f] = b % 2 ? 'x' : '.';
             b >>= 1;
         }
     }
-    for (int r = rank_length - 1; r >= 0; r--) {
-        for (int f = 0; f < file_length; f++) {
+    for (int r = RANK_LENGTH - 1; r >= 0; r--) {
+        for (int f = 0; f < FILE_LENGTH; f++) {
             printf("%c ", board[r][f]);
         }
         printf("\n");

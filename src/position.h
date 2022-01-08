@@ -9,6 +9,7 @@
 #include "bits.h"
 
 #include <stdbool.h>
+#include <stdio.h>
 
 /*
  * ---------------------------------------------------------------------------
@@ -16,29 +17,46 @@
  * ---------------------------------------------------------------------------
  */
 
+/** */
+
+typedef enum Color {
+    WHITE,
+    BLACK
+} Color;
+
+typedef enum Whose {
+    OURS,
+    THEIRS
+} Whose;
+
+typedef enum Piece {
+    PAWN,
+    KNIGHT,
+    BISHOP,
+    ROOK,
+    QUEEN,
+    KING
+} Piece;
+
+typedef enum Castling {
+    KINGSIDE,
+    QUEENSIDE
+} Castling;
+
 /** @brief A structure for everything to do with a board position */
-typedef struct {
-    bitboard ours,
-             theirs,
-             pawns,
-             knights,
-             bishops,
-             rooks,
-             queens;
+typedef struct position {
+    bitboard whose[2];
+    bitboard pieces[5];
+    square   king[2];
     uint16_t halfmoves;
     uint16_t fullmoves;
-    square   our_king;
-    square   their_king;
-    square   en_passant;
-    uint8_t   castling;      // a four-bit word
+    uint8_t  castling;      // a four-bit word
     bool     rotated;       // True means black to move.
 
 } position;
-
 typedef position *position_t;
 
-static char starting_fen[] = 
-        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+extern const char PIECE_CHARS[2][6];
 
 /**
  * @brief Allocates a new position on the heap.
@@ -74,7 +92,7 @@ void position_init(position_t P);
  * @param[in] P
  * @param[in] fen
  */
-void position_from_fen(position_t P, char *fen);
+void position_from_fen(position_t P, const char *fen);
 
 /**
  * @brief Exports a string for a given position.
@@ -84,113 +102,23 @@ void position_from_fen(position_t P, char *fen);
  */
 char *position_to_fen(position_t P);
 
-/** @brief Retrieves our pawns. */
-bitboard position_get_our_pawns(position_t P);
+bitboard position_get_pieces(position_t P, Whose whose, Piece piece);
 
-/** @brief Sets our pawns. */
-void position_set_our_pawns(position_t P, bitboard b);
+void position_set_pieces(position_t P, Whose whose, Piece piece, bitboard b);
 
-/** @brief Retrieves their pawns. */
-bitboard position_get_their_pawns(position_t P);
+square position_get_en_passant(position_t P, Whose whose);
 
-/** @brief Sets their pawns. */
-void position_set_their_pawns(position_t P, bitboard b);
+void position_set_en_passant(position_t P, Whose whose, square to);
 
-/** @brief Retrieves our en passant flag. */
-square position_get_our_en_passant(position_t P);
+void position_reset_en_passant(position_t P);
 
-/** @brief Sets our en passant flag. */
-void position_set_our_en_passant(position_t P, square s);
+bitboard position_get_king(position_t P, Whose whose);
 
-/** @brief Retrieves their en passant flag. */
-square position_get_their_en_passant(position_t P);
+void position_set_king(position_t P, Whose whose, square s);
 
-/** @brief Sets their en passant flag. */
-void position_set_their_en_passant(position_t P, square s);
+bool position_get_castling(position_t P, Whose whose, Castling castling);
 
-/** @brief Retrieves our knights. */
-bitboard position_get_our_knights(position_t P);
-
-/** @brief Sets our knights. */
-void position_set_our_knights(position_t P, bitboard b);
-
-/** @brief Retrieves their knights. */
-bitboard position_get_their_knights(position_t P);
-
-/** @brief Sets their knights. */
-void position_set_their_knights(position_t P, bitboard b);
- 
-/** @brief Retrieves our bishops. */
-bitboard position_get_our_bishops(position_t P);
-
-/** @brief Sets our bishops. */
-void position_set_our_bishops(position_t P, bitboard b);
-
-/** @brief Retrieves their bishops. */
-bitboard position_get_their_bishops(position_t P);
-
-/** @brief Sets our bishops. */
-void position_set_their_bishops(position_t P, bitboard b);
-
-/** @brief Retrieves our rooks. */
-bitboard position_get_our_rooks(position_t P);
-
-/** @brief Set our rooks. */
-void position_set_our_rooks(position_t P, bitboard b);
-
-/** @brief Retrieves their rooks. */
-bitboard position_get_their_rooks(position_t P);
-
-/** @brief Set their rooks. */
-void position_set_their_rooks(position_t P, bitboard b);
-
-/** @brief Retrieves our queens. */
-bitboard position_get_our_queens(position_t P);
-
-/** @brief Set our queens. */
-void position_set_our_queens(position_t P, bitboard b);
-
-/** @brief Retrieves their queens. */
-bitboard position_get_their_queens(position_t P);
-
-/** @brief Set their queens. */
-void position_set_their_queens(position_t P, bitboard b);
-
-/** @brief Retrieves our king. */
-bitboard position_get_our_king(position_t P);
-
-/** @brief Set our king. */
-void position_set_our_king(position_t P, square s);
-
-/** @brief Retrieves their king. */
-bitboard position_get_their_king(position_t P);
-
-/** @brief Set their king. */
-void position_set_their_king(position_t P, square s);
-
-/** @brief Whether or not we can castle kingside. */
-bool position_get_our_OO(position_t P);
-
-/** @brief Set whether or not we can castle kingside. */
-void position_set_our_OO(position_t P, bool can_OO);
-
-/** @brief Whether or not we can castle queenside. */
-bool position_get_our_OOO(position_t P);
-
-/** @brief Set whether or not we can castle queenside. */
-void position_set_our_OOO(position_t P, bool can_OOO);
-
-/** @brief Whether or not they can castle kingside. */
-bool position_get_their_OO(position_t P);
-
-/** @brief Set whether or not they can castle kingside. */
-void position_set_their_OO(position_t P, bool can_OO);
-
-/** @brief Whether or not they can castle queenside. */
-bool position_get_their_OOO(position_t P);
-
-/** @brief Set whether or not they can castle queenside. */
-void position_set_their_OOO(position_t P, bool can_OOO);
+void position_set_castling(position_t P, Whose whose, Castling castling, bool can_castle);
 
 /** @brief Rotate the position (rotates bitboards and swaps castling flags). */
 void position_rotate(position_t P);

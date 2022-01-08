@@ -13,35 +13,42 @@
 #include <stdlib.h>
 #include <string.h>
 
-/** @brief Gets the pawns from P->pawns */
-static const bitboard pawns_mask = 0x00FFFFFFFFFFFF00;
+const char PIECE_CHARS[2][6] = {
+    { 'P', 'N', 'B', 'R', 'Q', 'K' },
+    { 'p', 'n', 'b', 'r', 'q', 'k' }
+};
 
-/** @brief En_passant flags for P->pawns */
-static const bitboard our_en_passant_mask = 0xFF00000000000000;
-static const bitboard their_en_passant_mask = 0xFF;
+/** @brief Gets the pawns from P->pieces[PAWN] */
+static const bitboard PAWNS_MASK = 0x00FFFFFFFFFFFF00;
+
+/** @brief En_passant flags for P->pieces[PAWN] */
+static const bitboard EN_PASSANT_MASKS[2] = { 
+    0xFF00000000000000,
+    0x00000000000000FF
+};
 
 /** @brief Castling flags for P->castling */
-static const uint8_t our_OO_mask = 0b1000;
-static const uint8_t our_OOO_mask = 0b0100;
-static const uint8_t their_OO_mask = 0b0010;
-static const uint8_t their_OOO_mask = 0b0001;
+static const uint8_t castling_masks[2][2] = { {0b1000, 0b0100}, {0b0010, 0b0001} };
+
+static const char STARTING_FEN[] = 
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 /** Helper functions */
 
-static bool is_board(position *P) {
+static bool is_position(position *P) {
     if (P == NULL)
         return false;
 
-    bitboard all = P->ours | P->theirs;
-    bitboard pawns = P->pawns & pawns_mask;
-    bitboard kings = square_to_bitboard(P->our_king) 
-                     | square_to_bitboard(P->their_king);
-    bitboard all_pieces = pawns | P->knights | P->bishops | P->rooks 
-                          | P->queens | kings;
+    bitboard all = P->whose[OURS] | P->whose[THEIRS];
+    bitboard pawns = P->pieces[PAWN] & PAWNS_MASK;
+    bitboard kings = square_to_bitboard(P->king[OURS]) 
+                     | square_to_bitboard(P->king[THEIRS]);
+    bitboard all_pieces = pawns | P->pieces[KNIGHT] | P->pieces[BISHOP] | P->pieces[ROOK] 
+                          | P->pieces[QUEEN] | kings;
 
-    bool no_color_overlap = (P->ours & P->theirs) == 0;
-    bool no_pieces_overlap = (pawns & P->knights & P->bishops & P->rooks 
-                             & P->queens & kings) == 0;
+    bool no_color_overlap = (P->whose[OURS] & P->whose[THEIRS]) == 0;
+    bool no_pieces_overlap = (pawns & P->pieces[KNIGHT] & P->pieces[BISHOP] & P->pieces[ROOK] 
+                             & P->pieces[QUEEN] & kings) == 0;
     bool two_kings = bitboard_count_bits(kings & all) == 2;
 
     return no_color_overlap && no_pieces_overlap && all == all_pieces 
@@ -77,31 +84,31 @@ static void position_from_fen_pieces(position *P, char *pieces) {
 
             switch (to_lower(pieces[i])) {
                 case 'p':
-                    P->pawns |= b;
+                    P->pieces[PAWN] |= b;
                     break;
                 case 'n':
-                    P->knights |= b;
+                    P->pieces[KNIGHT] |= b;
                     break;
                 case 'b':
-                    P->bishops |= b;
+                    P->pieces[BISHOP] |= b;
                     break;
                 case 'r':
-                    P->rooks |= b;
+                    P->pieces[ROOK] |= b;
                     break;
                 case 'q':
-                    P->queens |= b;
+                    P->pieces[QUEEN] |= b;
                     break;
                 case 'k':
-                    if (is_black) P->their_king = s;
-                    else P->our_king = s;
+                    if (is_black) P->king[THEIRS] = s;
+                    else P->king[OURS] = s;
                     break;
                 default:
                     printf("Alpha character '%c' is not a piece!", pieces[i]);
                     return;
             }
 
-            if (is_black) P->theirs |= b;
-            else P->ours |= b;
+            if (is_black) P->whose[THEIRS] |= b;
+            else P->whose[OURS] |= b;
             
             f++;
 
@@ -138,6 +145,10 @@ static bool position_from_fen_side(position *P, char *side) {
 
 position *position_new(void) {
     position *P = malloc(sizeof(position));
+    if (P == NULL) {
+        perror("malloc error");
+        exit(1);
+    }
     position_clear(P);
     dbg_ensures(P != NULL);
     return P;
@@ -150,9 +161,9 @@ void position_free(position *P) {
 
 void position_clear(position *P) {
     dbg_requires(P != NULL);
-    P->ours = P->theirs = P->pawns = P->knights = P->bishops = P->rooks 
-              = P->queens = bitboard_empty;
-    P->our_king = P->their_king = -1;
+    P->whose[OURS] = P->whose[THEIRS] = P->pieces[PAWN] = P->pieces[KNIGHT] = P->pieces[BISHOP] = P->pieces[ROOK] 
+              = P->pieces[QUEEN] = BITBOARD_EMPTY;
+    P->king[OURS] = P->king[THEIRS] = INVALID_SQUARE;
     P->halfmoves = P->fullmoves = 0;
     P->castling = 0b0000;
     P->rotated = false;
@@ -162,24 +173,27 @@ void position_clear(position *P) {
 void position_init(position *P) {
     dbg_requires(P != NULL);
     
-    position_from_fen(P, starting_fen);
+    position_from_fen(P, STARTING_FEN);
 
-    dbg_ensures(is_board(P));
+    dbg_ensures(is_position(P));
 
     return;
 }
 
-void position_from_fen(position *P, char *fen) {
+void position_from_fen(position *P, const char *fen) {
     dbg_requires(P != NULL);
-    char *token;
+    char *token, *temp;
     bool is_black;
+
+    temp = malloc(sizeof(char) * (strlen(fen)+1));
+    temp = strncpy(temp, fen, strlen(fen));
 
     position_clear(P);
 
     // Pieces
-    token = strtok(fen, " ");
+    token = strtok(temp, " ");
     position_from_fen_pieces(P, token);
-
+    
     // Side to move
     token = strtok(NULL, " ");
     int side_len = strlen(token);
@@ -197,7 +211,6 @@ void position_from_fen(position *P, char *fen) {
         printf("Invalid FEN side-to-move char: %c", token[0]);
         exit(1);
     }
-
     // Castling
     token = strtok(NULL, " ");
     int castling_len = strlen(token);
@@ -210,16 +223,16 @@ void position_from_fen(position *P, char *fen) {
         for (int i = 0; i < castling_len; i++) {
             switch (token[i] ) {
                 case 'K':
-                    position_set_our_OO(P, true);
+                    position_set_castling(P, OURS, KINGSIDE, true);
                     break;
                 case 'Q':
-                    position_set_our_OOO(P, true);
+                    position_set_castling(P, OURS, QUEENSIDE, true);
                     break;
                 case 'k':
-                    position_set_their_OO(P, true);
+                    position_set_castling(P, THEIRS, KINGSIDE, true);
                     break;
                 case 'q':
-                    position_set_their_OOO(P, true);
+                    position_set_castling(P, THEIRS, QUEENSIDE, true);
                     break;
                 default:
                     printf("Invalid castling char (%c)\n", token[i]);
@@ -231,7 +244,7 @@ void position_from_fen(position *P, char *fen) {
     // En passant flag
     token = strtok(NULL, " ");
     if (token[0] != '-')
-        P->en_passant = square_from_string(token);
+        return;
 
     // Halfmove
     token = strtok(NULL, " ");
@@ -245,273 +258,95 @@ void position_from_fen(position *P, char *fen) {
         position_rotate(P);
     }
     
-    dbg_ensures(is_board(P));
+    dbg_ensures(is_position(P));
     return;
 }
 
-// TODO: IMPLEMENT
-// char *position_to_fen(position *P) {
-//     dbg_requires(is_board(P));
-// }
+/* TODO: IMPLEMENT
+char *position_to_fen(position *P);
+*/
 
-bitboard position_get_our_pawns(position *P) {
-    dbg_requires(is_board(P));
-    bitboard our_pawns = P->ours & P->pawns & pawns_mask;
-    return our_pawns;
+bitboard position_get_pieces(position_t P, Whose whose, Piece piece) {
+    dbg_requires(is_position(P));
+    bitboard b = P->whose[whose] & P->pieces[piece];
+    return b;
 }
 
-void position_set_our_pawns(position *P, bitboard b) {
-    dbg_requires(is_board(P));
-    dbg_requires((b & pawns_mask) == 0);
-    P->ours ^= b;
-    P->pawns ^= b;
+void position_set_pieces(position_t P, Whose whose, Piece piece, bitboard b) {
+    P->whose[whose] ^= b;
+    P->pieces[piece] ^= b;
     return;
 }
 
-bitboard position_get_their_pawns(position *P) {
-    dbg_requires(is_board(P));
-    bitboard their_pawns = P->theirs & P->pawns & pawns_mask;
-    return their_pawns;
+square position_get_en_passant(position_t P, Whose whose) {
+    return bitboard_to_square(P->pieces[PAWN] & EN_PASSANT_MASKS[whose]);
 }
 
-void position_set_their_pawns(position *P, bitboard b) {
-    dbg_requires(is_board(P));
-    dbg_requires((b & pawns_mask) == 0);
-    P->theirs ^= b;
-    P->pawns ^= b;
+void position_set_en_passant(position_t P, Whose whose, square to) {
+    square s;
+    if (whose == OURS)
+        s = to - 24;
+    else // whose == THEIRS
+        s = to + 24;
+    P->pieces[PAWN] |= square_to_bitboard(s);
     return;
 }
 
-square position_get_our_en_passant(position *P) {
-    dbg_requires(is_board(P));
-    bitboard our_en_passant = P->pawns & our_en_passant_mask;
-    square en_passant_square = bitboard_to_square(our_en_passant) - 16;
-    return en_passant_square;
-}
-
-void position_set_our_en_passant(position *P, square s) {
-    dbg_requires(is_board(P));
-    dbg_requires(40 <= s && s < 48);
-    P->pawns |= square_to_bitboard(s + 16);
+void position_reset_en_passant(position_t P) {
+    P->pieces[PAWN] &= PAWNS_MASK;
     return;
 }
 
-square position_get_their_en_passant(position *P) {
-    dbg_requires(is_board(P));
-    bitboard their_en_passant = P->pawns & their_en_passant_mask;
-    square en_passant_square = bitboard_to_square(their_en_passant) + 16;
-    return en_passant_square;
+bitboard position_get_king(position_t P, Whose whose) {
+    dbg_requires(is_position(P));
+    bitboard b = square_to_bitboard(P->king[whose]);
+    return b;
 }
 
-void position_set_their_en_passant(position *P, square s) {
-    dbg_requires(is_board(P));
-    dbg_requires(16 <= s && s < 24);
-    P->pawns |= square_to_bitboard(s - 16);
+void position_set_king(position_t P, Whose whose, square s) {
+    P->whose[OURS] ^= square_to_bitboard(P->king[whose]) | square_to_bitboard(s);
+    P->king[whose] = s;
     return;
 }
 
-bitboard position_get_our_knights(position *P) {
-    dbg_requires(is_board(P));
-    bitboard our_knights = P->ours & P->knights;
-    return our_knights;
+bool position_get_castling(position_t P, Whose whose, Castling castling) {
+    bool can_castle = P->castling & castling_masks[whose][castling];
+    return can_castle;
 }
 
-void position_set_our_knights(position *P, bitboard b) {
-    dbg_requires(is_board(P));
-    P->ours ^= b;
-    P->knights ^= b;
-    return;
-}
-
-bitboard position_get_their_knights(position *P) {
-    dbg_requires(is_board(P));
-    bitboard their_knights = P->theirs & P->knights;
-    return their_knights;
-}
-
-void position_set_their_knights(position *P, bitboard b) {
-    dbg_requires(is_board(P));
-    P->theirs ^= b;
-    P->knights ^= b;
-    return;
-}
- 
-bitboard position_get_our_bishops(position *P) {
-    dbg_requires(is_board(P));
-    bitboard our_bishops = P->ours & P->bishops;
-    return our_bishops;
-}
-
-void position_set_our_bishops(position *P, bitboard b) {
-    dbg_requires(is_board(P));
-    P->ours ^= b; 
-    P->bishops ^= b;
-    return;
-}
-
-bitboard position_get_their_bishops(position *P) {
-    dbg_requires(is_board(P));
-    bitboard their_bishops = P->theirs & P->bishops;
-    return their_bishops;
-}
-
-void position_set_their_bishops(position *P, bitboard b) {
-    dbg_requires(is_board(P));
-    P->theirs ^= b;
-    P->bishops ^= b;
-    return;
-}
-
-bitboard position_get_our_rooks(position *P) {
-    dbg_requires(is_board(P));
-    bitboard our_rooks = P->ours & P->rooks;
-    return our_rooks;
-}
-
-void position_set_our_rooks(position *P, bitboard b) {
-    dbg_requires(is_board(P));
-    P->ours ^= b;
-    P->rooks ^= b;
-    return;
-}
-
-bitboard position_get_their_rooks(position *P) {
-    dbg_requires(is_board(P));
-    bitboard their_rooks = P->theirs & P->rooks;
-    return their_rooks;
-}
-
-void position_set_their_rooks(position *P, bitboard b) {
-    dbg_requires(is_board(P));
-    P->theirs ^= b;
-    P->rooks ^= b;
-    return;
-}
-
-bitboard position_get_our_queens(position *P) {
-    dbg_requires(is_board(P));
-    bitboard our_queens = P->ours & P->queens;
-    return our_queens;
-}
-
-void position_set_our_queens(position *P, bitboard b) {
-    dbg_requires(is_board(P));
-    P->ours ^= b;
-    P->queens ^= b;
-    return;
-}
-
-bitboard position_get_their_queens(position *P) {
-    dbg_requires(is_board(P));
-    bitboard their_queens = P->theirs & P->queens;
-    return their_queens;
-}
-
-void position_set_their_queens(position *P, bitboard b) {
-    dbg_requires(is_board(P));
-    P->theirs ^= b;
-    P->queens ^= b;
-    return;
-}
-
-bitboard position_get_our_king(position *P) {
-    dbg_requires(is_board(P));
-    bitboard our_king = square_to_bitboard(P->our_king);
-    return our_king;
-}
-
-void position_set_our_king(position *P, square s) {
-    dbg_requires(is_board(P));
-    P->our_king = s;
-    return;
-}
-
-bitboard position_get_their_king(position *P) {
-    dbg_requires(is_board(P));
-    bitboard their_king = square_to_bitboard(P->their_king);
-    return their_king;
-}
-
-void position_set_their_king(position *P, square s) {
-    dbg_requires(is_board(P));
-    P->their_king = s;
-    return;
-}
-
-bool position_get_our_OO(position *P) {
-    dbg_requires(is_board(P));
-    bool our_OO = P->castling & our_OO_mask;
-    return our_OO;
-}
-
-void position_set_our_OO(position *P, bool can_OO) {
-    dbg_requires(is_board(P));
-    P->castling |= our_OO_mask * can_OO;
-    return;
-}
-
-bool position_get_our_OOO(position *P) {
-    dbg_requires(is_board(P));
-    bool our_OOO = P->castling & our_OOO_mask;
-    return our_OOO;
-}
-
-void position_set_our_OOO(position *P, bool can_OOO) {
-    dbg_requires(is_board(P));
-    P->castling |= our_OOO_mask * can_OOO;
-    return;
-}
-
-bool position_get_their_OO(position *P) {
-    dbg_requires(is_board(P));
-    bool their_OO = P->castling & their_OO_mask;
-    return their_OO;
-}
-
-void position_set_their_OO(position *P, bool can_OO) {
-    dbg_requires(is_board(P));
-    P->castling |= their_OO_mask * can_OO;
-    return;
-}
-
-bool position_get_their_OOO(position *P) {
-    dbg_requires(is_board(P));
-    bool their_OOO = P->castling & their_OOO_mask;
-    return their_OOO;
-}
-
-void position_set_their_OOO(position *P, bool can_OOO) {
-    dbg_requires(is_board(P));
-    P->castling |= their_OOO_mask * can_OOO;
+void position_set_castling(position_t P, Whose whose, Castling castling, bool can_castle) {
+    P->castling = (P->castling & ~castling_masks[whose][castling]) | 
+                  (castling_masks[whose][castling] * can_castle);
     return;
 }
 
 void position_rotate(position *P) {
-    P->ours = bitboard_rotate(P->ours);
-    P->theirs = bitboard_rotate(P->theirs);
-    P->pawns = bitboard_rotate(P->pawns);
-    P->knights = bitboard_rotate(P->knights);
-    P->bishops = bitboard_rotate(P->bishops);
-    P->rooks = bitboard_rotate(P->rooks);
-    P->queens = bitboard_rotate(P->queens);
+    P->whose[OURS] = bitboard_rotate(P->whose[OURS]);
+    P->whose[THEIRS] = bitboard_rotate(P->whose[THEIRS]);
+    P->pieces[PAWN] = bitboard_rotate(P->pieces[PAWN]);
+    P->pieces[KNIGHT] = bitboard_rotate(P->pieces[KNIGHT]);
+    P->pieces[BISHOP] = bitboard_rotate(P->pieces[BISHOP]);
+    P->pieces[ROOK] = bitboard_rotate(P->pieces[ROOK]);
+    P->pieces[QUEEN] = bitboard_rotate(P->pieces[QUEEN]);
 
-    bitboard temp_b = P->ours;
-    P->ours = P->theirs;
-    P->theirs = temp_b;
+    bitboard temp_b = P->whose[OURS];
+    P->whose[OURS] = P->whose[THEIRS];
+    P->whose[THEIRS] = temp_b;
     
-    bitboard our_king = square_to_bitboard(P->our_king);
-    bitboard their_king = square_to_bitboard(P->their_king);
-    P->our_king = bitboard_to_square(bitboard_rotate(their_king));
-    P->their_king = bitboard_to_square(bitboard_rotate(our_king));
+    bitboard our_king = square_to_bitboard(P->king[OURS]);
+    bitboard their_king = square_to_bitboard(P->king[THEIRS]);
+    P->king[OURS] = bitboard_to_square(bitboard_rotate(their_king));
+    P->king[THEIRS] = bitboard_to_square(bitboard_rotate(our_king));
 
-    uint8_t our_castling = P->castling & (our_OO_mask | our_OOO_mask);
-    uint8_t their_castling = P->castling & (their_OO_mask | their_OOO_mask);
+    uint8_t our_castling = P->castling & (castling_masks[OURS][KINGSIDE] | castling_masks[OURS][QUEENSIDE]);
+    uint8_t their_castling = P->castling & (castling_masks[THEIRS][KINGSIDE] | castling_masks[THEIRS][QUEENSIDE]);
     P->castling = (our_castling >> 2) | (their_castling << 2);
     
     P->rotated = !P->rotated;
 }
 
 void position_print(position *P) {
+    dbg_requires(is_position(P));
     char board[8][8];
     bitboard b;
     rank r;
@@ -522,19 +357,19 @@ void position_print(position *P) {
         r = square_get_rank(s);
         f = square_get_file(s);
 
-        if (P->ours & b) is_black = false;
-        else if (P->theirs & b) is_black = true;
+        if (P->whose[OURS] & b) is_black = false;
+        else if (P->whose[THEIRS] & b) is_black = true;
         else {
             board[7 - r][f] = '.';
             continue;
         }
 
-        if (P->pawns & b) board[7 - r][f] = 'P';
-        else if (P->knights & b) board[7 - r][f] = 'N';
-        else if (P->bishops & b) board[7 - r][f] = 'B';
-        else if (P->rooks & b) board[7 - r][f] = 'R';
-        else if (P->queens & b) board[7 - r][f] = 'Q';
-        else if (P->our_king == s || P->their_king == s) board[7 - r][f] = 'K';
+        if (P->pieces[PAWN] & b) board[7 - r][f] = 'P';
+        else if (P->pieces[KNIGHT] & b) board[7 - r][f] = 'N';
+        else if (P->pieces[BISHOP] & b) board[7 - r][f] = 'B';
+        else if (P->pieces[ROOK] & b) board[7 - r][f] = 'R';
+        else if (P->pieces[QUEEN] & b) board[7 - r][f] = 'Q';
+        else if (P->king[OURS] == s || P->king[THEIRS] == s) board[7 - r][f] = 'K';
         else {
             printf("position_print error\n");
             exit(1);
@@ -554,10 +389,10 @@ void position_print(position *P) {
     else printf("White to move.\n");
 
     printf("W: ");
-    if (P->castling & our_OO_mask) printf("O-O ");
-    if (P->castling & our_OOO_mask) printf("O-O-O ");
+    if (P->castling & castling_masks[OURS][KINGSIDE]) printf("O-O ");
+    if (P->castling & castling_masks[OURS][QUEENSIDE]) printf("O-O-O ");
     printf("B: ");
-    if (P->castling & their_OO_mask) printf("O-O ");
-    if (P->castling & their_OOO_mask) printf("O-O-O ");
+    if (P->castling & castling_masks[THEIRS][KINGSIDE]) printf("O-O ");
+    if (P->castling & castling_masks[THEIRS][QUEENSIDE]) printf("O-O-O ");
     printf("\n\n");
 }

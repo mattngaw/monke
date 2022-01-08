@@ -34,6 +34,14 @@ void bits_tests(void) {
     /* Converting singular bitboard to square */
     assert(bitboard_to_square(0b100000) == 5);
 
+    /* BitScan Forward */
+    assert(bitboard_bsf(0b11010011) == 0);
+    assert(bitboard_bsf((1L << 63) | (1L << 62)) == 62);
+
+    /* BitScan Reverse */
+    assert(bitboard_bsr(0b11010011) == 7);
+    assert(bitboard_bsr((1L << 63) | (1L << 62)) == 63);
+
     /* Counting number of (on bits) */
     assert(bitboard_count_bits(0b11010011) == 5);
 
@@ -48,12 +56,7 @@ void bits_tests(void) {
 int main(void) {
     bits_tests();
 
-    /* quick XOR test */
-    bitboard b = 0;
-    square s = square_calculate(7, 0);
-    b |= square_to_bitboard(s);
-    bitboard_print(b);
-
     printf("All tests passed!\n");
+    
     return 0;
 }

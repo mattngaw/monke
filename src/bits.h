@@ -6,22 +6,23 @@
 #ifndef _BITS_H_
 #define _BITS_H_
 
+#include <stdbool.h>
 #include <stdint.h>
 
-/** @brief The rank (row) of a square. */
+/** @brief The rank (row) of a square */
 typedef uint8_t rank;
 
-/** @brief The file (column) of a square. */
+/** @brief The file (column) of a square */
 typedef uint8_t file;
 
 /** 
  * @brief A square on a chessboard, where a1, a2, ..., h7, h8 are mapped by the 
- * range from 0 to 63.
+ * range from 0 to 63
  */
 typedef uint8_t square;
 
 /** 
- * @brief A 64-bit word representing a set of squares.
+ * @brief A 64-bit word representing a set of squares
  * 
  * Used to represent piece locations, legal moves, attack maps, etc.
  */
@@ -30,7 +31,7 @@ typedef uint64_t bitboard;
 /** 
  * @brief Global enumeration for easy square access
  */
-typedef enum {
+typedef enum Square {
     A1, B1, C1, D1, E1, F1, G1, H1,
     A2, B2, C2, D2, E2, F2, G2, H2,
     A3, B3, C3, D3, E3, F3, G3, H3,
@@ -41,7 +42,13 @@ typedef enum {
     A8, B8, C8, D8, E8, F8, G8, H8
 } Square;
 
-static const bitboard bitboard_empty = 0;
+extern const square INVALID_SQUARE;
+
+/** @brief Helpful bitboard constants */
+extern const bitboard BITBOARD_EMPTY;
+extern const bitboard BITBOARD_FULL;
+
+extern const char *SQUARES_TO_STRINGS[64];
 
 /*
  * ---------------------------------------------------------------------------
@@ -88,7 +95,7 @@ bitboard square_to_bitboard(square s);
  * @param[in] s
  * @return char* 
  */
-char *square_to_string(square s);
+const char *square_to_string(square s);
 
 /**
  * @brief Converts a string to a square.
@@ -103,6 +110,8 @@ square square_from_string(char *str);
  *                                  BITBOARDS
  * ---------------------------------------------------------------------------
  */
+
+bool bitboard_is_empty(bitboard b);
 
 /**
  * @brief Sets the s'th bit of b to true.
@@ -137,6 +146,26 @@ square bitboard_to_square(bitboard b);
  * @return uint8_t 
  */
 uint8_t bitboard_count_bits(bitboard b);
+
+/**
+ * @brief Gets the index of the least significant bit.
+ * 
+ * @param[in] b
+ * @return square
+ */
+square bitboard_bsf(bitboard b);
+
+/**
+ * @brief Gets the index of the most significant bit.
+ * 
+ * @param[in] b
+ * @return square
+ */
+square bitboard_bsr(bitboard b);
+
+square bitboard_iter_first(bitboard *b);
+
+square bitboard_iter_last(bitboard *b);
 
 /**
  * @brief Reverses the bits of a bitboard.
