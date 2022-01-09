@@ -18,23 +18,26 @@ const char PIECE_CHARS[2][6] = {
     { 'p', 'n', 'b', 'r', 'q', 'k' }
 };
 
-/** @brief Gets the pawns from P->pieces[PAWN] */
+/* Gets the pawns from P->pieces[PAWN] */
 static const bitboard PAWNS_MASK = 0x00FFFFFFFFFFFF00;
 
-/** @brief En_passant flags for P->pieces[PAWN] */
-static const bitboard EN_PASSANT_MASKS[2] = { 
-    0xFF00000000000000,
-    0x00000000000000FF
-};
+/* En_passant flags for P->pieces[PAWN] */
+static const bitboard EN_PASSANT_MASKS[2] = { 0xFF00000000000000 , 
+                                              0x00000000000000FF };
 
-/** @brief Castling flags for P->castling */
-static const uint8_t castling_masks[2][2] = { {0b1000, 0b0100}, {0b0010, 0b0001} };
+/* Castling flags for P->castling */
+static const uint8_t CASTLING_MASKS[2][2] = { {0b1000, 0b0100}, {0b0010, 0b0001} };
 
 static const char STARTING_FEN[] = 
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-/** Helper functions */
+/*
+ * ---------------------------------------------------------------------------
+ *                                POSITIONS 
+ * ---------------------------------------------------------------------------
+ */
 
+/* Helper function for contract assertions */
 static bool is_position(position *P) {
     if (P == NULL)
         return false;
@@ -54,6 +57,47 @@ static bool is_position(position *P) {
     return no_color_overlap && no_pieces_overlap && all == all_pieces 
            && two_kings;
 }
+
+/** Interface functions */
+
+position *position_new(void) {
+    position *P = malloc(sizeof(position));
+    if (P == NULL) {
+        perror("malloc error");
+        exit(1);
+    }
+    position_clear(P);
+    dbg_ensures(P != NULL);
+    return P;
+}
+
+void position_free(position *P) {
+    free(P);
+    return;
+}
+
+void position_clear(position *P) {
+    dbg_requires(P != NULL);
+    P->whose[OURS] = P->whose[THEIRS] = P->pieces[PAWN] = P->pieces[KNIGHT] = P->pieces[BISHOP] = P->pieces[ROOK] 
+              = P->pieces[QUEEN] = BITBOARD_EMPTY;
+    P->king[OURS] = P->king[THEIRS] = INVALID_SQUARE;
+    P->halfmoves = P->fullmoves = 0;
+    P->castling = 0b0000;
+    P->color = false;
+    return;
+}
+
+void position_init(position *P) {
+    dbg_requires(P != NULL);
+    
+    position_from_fen(P, STARTING_FEN);
+
+    dbg_ensures(is_position(P));
+
+    return;
+}
+
+/* position_from_fen */
 
 static bool is_alpha(char c) {
     return (0x41 <= c && c <= 0x5A) || (0x61 <= c && c <= 0x7A);
@@ -131,7 +175,7 @@ static bool position_from_fen_side(position *P, char *side) {
     if (side_len != 1) {
         printf("Invalid char: %c", side[0]);
         exit(1);
-    }
+    } 
 
     if (side[0] == 'w') {
         return false;
@@ -139,45 +183,6 @@ static bool position_from_fen_side(position *P, char *side) {
         return true;
     }
     exit(1);
-}
-
-/** Interface functions */
-
-position *position_new(void) {
-    position *P = malloc(sizeof(position));
-    if (P == NULL) {
-        perror("malloc error");
-        exit(1);
-    }
-    position_clear(P);
-    dbg_ensures(P != NULL);
-    return P;
-}
-
-void position_free(position *P) {
-    free(P);
-    return;
-}
-
-void position_clear(position *P) {
-    dbg_requires(P != NULL);
-    P->whose[OURS] = P->whose[THEIRS] = P->pieces[PAWN] = P->pieces[KNIGHT] = P->pieces[BISHOP] = P->pieces[ROOK] 
-              = P->pieces[QUEEN] = BITBOARD_EMPTY;
-    P->king[OURS] = P->king[THEIRS] = INVALID_SQUARE;
-    P->halfmoves = P->fullmoves = 0;
-    P->castling = 0b0000;
-    P->rotated = false;
-    return;
-}
-
-void position_init(position *P) {
-    dbg_requires(P != NULL);
-    
-    position_from_fen(P, STARTING_FEN);
-
-    dbg_ensures(is_position(P));
-
-    return;
 }
 
 void position_from_fen(position *P, const char *fen) {
@@ -262,7 +267,7 @@ void position_from_fen(position *P, const char *fen) {
     return;
 }
 
-/* TODO: IMPLEMENT
+/* [TODO]
 char *position_to_fen(position *P);
 */
 
@@ -273,16 +278,21 @@ bitboard position_get_pieces(position_t P, Whose whose, Piece piece) {
 }
 
 void position_set_pieces(position_t P, Whose whose, Piece piece, bitboard b) {
+    dbg_requires(is_position(P));
     P->whose[whose] ^= b;
     P->pieces[piece] ^= b;
     return;
 }
 
 square position_get_en_passant(position_t P, Whose whose) {
-    return bitboard_to_square(P->pieces[PAWN] & EN_PASSANT_MASKS[whose]);
+    dbg_requires(is_position(P));
+    square offset = whose ? -16 : 16; // -16 if OURS, 16 if THEIRS
+    bitboard en_passant_bb = P->pieces[PAWN] & EN_PASSANT_MASKS[whose];
+    return bitboard_to_square(en_passant_bb) + offset;
 }
 
 void position_set_en_passant(position_t P, Whose whose, square to) {
+    dbg_requires(is_position(P));
     square s;
     if (whose == OURS)
         s = to - 24;
@@ -310,13 +320,13 @@ void position_set_king(position_t P, Whose whose, square s) {
 }
 
 bool position_get_castling(position_t P, Whose whose, Castling castling) {
-    bool can_castle = P->castling & castling_masks[whose][castling];
+    bool can_castle = P->castling & CASTLING_MASKS[whose][castling];
     return can_castle;
 }
 
 void position_set_castling(position_t P, Whose whose, Castling castling, bool can_castle) {
-    P->castling = (P->castling & ~castling_masks[whose][castling]) | 
-                  (castling_masks[whose][castling] * can_castle);
+    P->castling = (P->castling & ~CASTLING_MASKS[whose][castling]) | 
+                  (CASTLING_MASKS[whose][castling] * can_castle);
     return;
 }
 
@@ -338,11 +348,11 @@ void position_rotate(position *P) {
     P->king[OURS] = bitboard_to_square(bitboard_rotate(their_king));
     P->king[THEIRS] = bitboard_to_square(bitboard_rotate(our_king));
 
-    uint8_t our_castling = P->castling & (castling_masks[OURS][KINGSIDE] | castling_masks[OURS][QUEENSIDE]);
-    uint8_t their_castling = P->castling & (castling_masks[THEIRS][KINGSIDE] | castling_masks[THEIRS][QUEENSIDE]);
+    uint8_t our_castling = P->castling & (CASTLING_MASKS[OURS][KINGSIDE] | CASTLING_MASKS[OURS][QUEENSIDE]);
+    uint8_t their_castling = P->castling & (CASTLING_MASKS[THEIRS][KINGSIDE] | CASTLING_MASKS[THEIRS][QUEENSIDE]);
     P->castling = (our_castling >> 2) | (their_castling << 2);
     
-    P->rotated = !P->rotated;
+    P->color = !P->color;
 }
 
 void position_print(position *P) {
@@ -385,14 +395,14 @@ void position_print(position *P) {
         printf("\n");
     }
 
-    if (P->rotated) printf("Black to move.\n");
+    if (P->color) printf("Black to move.\n");
     else printf("White to move.\n");
 
     printf("W: ");
-    if (P->castling & castling_masks[OURS][KINGSIDE]) printf("O-O ");
-    if (P->castling & castling_masks[OURS][QUEENSIDE]) printf("O-O-O ");
+    if (P->castling & CASTLING_MASKS[OURS][KINGSIDE]) printf("O-O ");
+    if (P->castling & CASTLING_MASKS[OURS][QUEENSIDE]) printf("O-O-O ");
     printf("B: ");
-    if (P->castling & castling_masks[THEIRS][KINGSIDE]) printf("O-O ");
-    if (P->castling & castling_masks[THEIRS][QUEENSIDE]) printf("O-O-O ");
+    if (P->castling & CASTLING_MASKS[THEIRS][KINGSIDE]) printf("O-O ");
+    if (P->castling & CASTLING_MASKS[THEIRS][QUEENSIDE]) printf("O-O-O ");
     printf("\n\n");
 }
