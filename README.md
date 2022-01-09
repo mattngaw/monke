@@ -1,4 +1,6 @@
-# Monke — A bitboard-based chess engine written in C
+# Monke 🐒
+
+*A bitboard-based chess engine written in C*
 
 This started in the fall of 2021 as a personal side project that grew out of my love for chess. My baseline goal is to make it strong enough to beat me at chess, but I have some more specific goals/features in mind.
 
