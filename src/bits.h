@@ -30,8 +30,8 @@ typedef uint8_t square;
  */
 typedef uint64_t bitboard;
 
-/** @brief Global enumeration for easy square access */
-typedef enum Square {
+/** @brief Global enumeration for easy square access for white */
+typedef enum WhiteSquare {
     A1, B1, C1, D1, E1, F1, G1, H1,
     A2, B2, C2, D2, E2, F2, G2, H2,
     A3, B3, C3, D3, E3, F3, G3, H3,
@@ -40,7 +40,19 @@ typedef enum Square {
     A6, B6, C6, D6, E6, F6, G6, H6,
     A7, B7, C7, D7, E7, F7, G7, H7,
     A8, B8, C8, D8, E8, F8, G8, H8
-} Square;
+} WhiteSquare;
+
+/** @brief Global enumeration for easy square access for black */
+typedef enum BlackSquare {
+    h8, g8, f8, e8, d8, c8, b8, a8,
+    h7, g7, f7, e7, d7, c7, b7, a7,
+    h6, g6, f6, e6, d6, c6, b6, a6,
+    h5, g5, f5, e5, d5, c5, b5, a5,
+    h4, g4, f4, e4, d4, c4, b4, a4,
+    h3, g3, f3, e3, d3, c3, b3, a3,
+    h2, g2, f2, e2, d2, c2, b2, a2,
+    h1, g1, f1, e1, d1, c1, b1, a1
+} BlackSquare;
 
 /** @brief An illegal square, used as an extraneous return value */
 extern const square INVALID_SQUARE;
@@ -236,6 +248,7 @@ square bitboard_iter_first(bitboard *b);
  * 
  * @param[in] b
  * 
+ * @return s
  * @post 0 <= s < 64, or INVALID_SQUARE (if b == 0)
  */
 square bitboard_iter_last(bitboard *b);
@@ -247,15 +260,10 @@ square bitboard_iter_last(bitboard *b);
  * 
  * @return b_
  * @post bitboard_rotate(b_) == b 
- * 
  */
 bitboard bitboard_rotate(bitboard b);
 
-/**
- * @brief Prints a bitboard
- * 
- * @param[in] b
- */
+/** @brief Prints a bitboard */
 void bitboard_print(bitboard b);
 
 #endif

@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/** @brief Labels for directions on a chess board */
 typedef enum {
     NORTH,
     EAST,
@@ -33,8 +34,15 @@ const uint8_t M_FLAG_CAPTURE = 0x04;
 const uint8_t M_FLAG_EN_PASSANT = 0x05; // Includes M_FLAG_CAPTURE
 const uint8_t M_FLAG_PROMOTION[5] = { 0x00, 0x08, 0x09, 0x0A, 0x0B };
 
+/** @brief Masks for the important squares regarding castling */
 static const bitboard CASTLING_MASK[2] = { 0x60, 0x0C };
 
+/** 
+ * @brief Maps for rays in specific directions from specific squares 
+ * 
+ * Rays are lines of attack for sliding pieces
+ * e.g. RAYS[NORTH][E4] == all the squares from e5 to e8 inclusive
+ * */
 static const bitboard RAYS[8][64] = {
     {   /* NORTH */
         0x0101010101010100, 0x0202020202020200, 0x0404040404040400,
@@ -230,6 +238,7 @@ static const bitboard RAYS[8][64] = {
     }
 };
 
+/** @brief Maps for the squares that a knight attacks from a given square */
 static const bitboard KNIGHT_ATTACKS[64] = {
     0x0000000000020400, 0x0000000000050800, 0x00000000000a1100,
     0x0000000000142200, 0x0000000000284400, 0x0000000000508800,
@@ -255,6 +264,7 @@ static const bitboard KNIGHT_ATTACKS[64] = {
     0x0020400000000000
 };
 
+/** @brief Maps for the squares that a king attacks from a given square */
 static const bitboard KING_ATTACKS[64] = {
     0x0000000000000302, 0x0000000000000705, 0x0000000000000e0a,
     0x0000000000001c14, 0x0000000000003828, 0x0000000000007050,
@@ -280,31 +290,59 @@ static const bitboard KING_ATTACKS[64] = {
     0x40c0000000000000
 };
 
-static const bitboard PAWN_ATTACKS[64] = {
-    0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
-    0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
-    0x0000000000000000, 0x0000000000000000, 0x0000000000020000,
-    0x0000000000050000, 0x00000000000a0000, 0x0000000000140000,
-    0x0000000000280000, 0x0000000000500000, 0x0000000000a00000,
-    0x0000000000400000, 0x0000000002000000, 0x0000000005000000,
-    0x000000000a000000, 0x0000000014000000, 0x0000000028000000,
-    0x0000000050000000, 0x00000000a0000000, 0x0000000040000000,
-    0x0000000200000000, 0x0000000500000000, 0x0000000a00000000,
-    0x0000001400000000, 0x0000002800000000, 0x0000005000000000,
-    0x000000a000000000, 0x0000004000000000, 0x0000020000000000,
-    0x0000050000000000, 0x00000a0000000000, 0x0000140000000000,
-    0x0000280000000000, 0x0000500000000000, 0x0000a00000000000,
-    0x0000400000000000, 0x0002000000000000, 0x0005000000000000,
-    0x000a000000000000, 0x0014000000000000, 0x0028000000000000,
-    0x0050000000000000, 0x00a0000000000000, 0x0040000000000000,
-    0x0200000000000000, 0x0500000000000000, 0x0a00000000000000,
-    0x1400000000000000, 0x2800000000000000, 0x5000000000000000,
-    0xa000000000000000, 0x4000000000000000, 0x0000000000000000,
-    0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
-    0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
-    0x0000000000000000
+/** @brief Maps for the squares that a pawn attacks from a given square */
+static const bitboard PAWN_ATTACKS[2][64] = {
+    {
+        0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
+        0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
+        0x0000000000000000, 0x0000000000000000, 0x0000000000020000,
+        0x0000000000050000, 0x00000000000a0000, 0x0000000000140000,
+        0x0000000000280000, 0x0000000000500000, 0x0000000000a00000,
+        0x0000000000400000, 0x0000000002000000, 0x0000000005000000,
+        0x000000000a000000, 0x0000000014000000, 0x0000000028000000,
+        0x0000000050000000, 0x00000000a0000000, 0x0000000040000000,
+        0x0000000200000000, 0x0000000500000000, 0x0000000a00000000,
+        0x0000001400000000, 0x0000002800000000, 0x0000005000000000,
+        0x000000a000000000, 0x0000004000000000, 0x0000020000000000,
+        0x0000050000000000, 0x00000a0000000000, 0x0000140000000000,
+        0x0000280000000000, 0x0000500000000000, 0x0000a00000000000,
+        0x0000400000000000, 0x0002000000000000, 0x0005000000000000,
+        0x000a000000000000, 0x0014000000000000, 0x0028000000000000,
+        0x0050000000000000, 0x00a0000000000000, 0x0040000000000000,
+        0x0200000000000000, 0x0500000000000000, 0x0a00000000000000,
+        0x1400000000000000, 0x2800000000000000, 0x5000000000000000,
+        0xa000000000000000, 0x4000000000000000, 0x0000000000000000,
+        0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
+        0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
+        0x0000000000000000
+    },
+    {
+        0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
+        0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
+        0x0000000000000000, 0x0000000000000000, 0x0000000000000002,
+        0x0000000000000005, 0x000000000000000a, 0x0000000000000014,
+        0x0000000000000028, 0x0000000000000050, 0x00000000000000a0,
+        0x0000000000000040, 0x0000000000000200, 0x0000000000000500,
+        0x0000000000000a00, 0x0000000000001400, 0x0000000000002800,
+        0x0000000000005000, 0x000000000000a000, 0x0000000000004000,
+        0x0000000000020000, 0x0000000000050000, 0x00000000000a0000,
+        0x0000000000140000, 0x0000000000280000, 0x0000000000500000,
+        0x0000000000a00000, 0x0000000000400000, 0x0000000002000000,
+        0x0000000005000000, 0x000000000a000000, 0x0000000014000000,
+        0x0000000028000000, 0x0000000050000000, 0x00000000a0000000,
+        0x0000000040000000, 0x0000000200000000, 0x0000000500000000,
+        0x0000000a00000000, 0x0000001400000000, 0x0000002800000000,
+        0x0000005000000000, 0x000000a000000000, 0x0000004000000000,
+        0x0000020000000000, 0x0000050000000000, 0x00000a0000000000,
+        0x0000140000000000, 0x0000280000000000, 0x0000500000000000,
+        0x0000a00000000000, 0x0000400000000000, 0x0000000000000000,
+        0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
+        0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
+        0x0000000000000000
+    }
 };
 
+/** @brief Maps for the squares that a pawn can move to from a given square */
 static const bitboard PAWN_MOVES[64] = {
     0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
     0x0000000000000000, 0x0000000000000000, 0x0000000000000000,
@@ -337,6 +375,7 @@ static const bitboard PAWN_MOVES[64] = {
  * ---------------------------------------------------------------------------
  */
 
+/** @brief Detects if a move is a NULL_MOVE */
 static bool move_is_null(move m) {
     return m.piece == 0 && m.from == 0 && m.to == 0 && m.flags == 0;
 }
@@ -346,10 +385,22 @@ void move_apply(position_t P, move m) {
     bitboard to_bb = square_to_bitboard(m.to);
     bitboard move_bb = from_bb | to_bb;;
 
+    position_reset_en_passant(P);
+
+    if (m.flags == M_FLAG_CASTLING[KINGSIDE]) {
+        
+    }
+
     P->whose[OURS] ^= move_bb;
     P->pieces[m.piece] ^= from_bb;
 
-    if (m.flags & M_FLAG_CAPTURE) {
+    if (m.flags == M_FLAG_DPP) {
+        position_set_en_passant(P, THEIRS, m.to);
+    } else if (m.flags == M_FLAG_EN_PASSANT) {
+        bitboard capture_bb = to_bb >> 8;
+        P->whose[THEIRS] ^= capture_bb;
+        P->pieces[PAWN] ^= capture_bb;
+    } else if (m.flags & M_FLAG_CAPTURE) {
         P->whose[THEIRS] ^= to_bb;
         for (Piece piece = PAWN; piece <= KING; piece++) {
             if (P->pieces[piece] & to_bb) {
@@ -361,6 +412,25 @@ void move_apply(position_t P, move m) {
 
     P->pieces[m.piece] ^= to_bb;
     return;
+}
+
+/** @brief Prints a move in bitboard form, with to and from squares labelled */
+static void move_print_bb(move m) {
+    char board[8][8];
+    for (int r = 0; r < 8; r++) {
+        for (int f = 0; f < 8; f++) {
+            if (square_calculate(r, f) == m.to) board[r][f] = 'T';
+            else if (square_calculate(r, f) == m.from) board[r][f] = 'F';
+            else board[r][f] = '.';
+        }
+    }
+    for (int r = 8 - 1; r >= 0; r--) {
+        for (int f = 0; f < 8; f++) {
+            printf("%c ", board[r][f]);
+        }
+        printf("\n");
+    }
+    printf("\n");
 }
 
 void move_print(move m) {
@@ -382,22 +452,6 @@ void move_print(move m) {
     if (m.flags & M_FLAG_CAPTURE) printf("x");
     printf("%s:\n", to);
 
-    char board[8][8];
-    for (int r = 0; r < 8; r++) {
-        for (int f = 0; f < 8; f++) {
-            if (square_calculate(r, f) == m.to) board[r][f] = 'T';
-            else if (square_calculate(r, f) == m.from) board[r][f] = 'F';
-            else board[r][f] = '.';
-        }
-    }
-    for (int r = 8 - 1; r >= 0; r--) {
-        for (int f = 0; f < 8; f++) {
-            printf("%c ", board[r][f]);
-        }
-        printf("\n");
-    }
-    printf("\n");
-
     return;
 }
 
@@ -406,7 +460,7 @@ void move_print(move m) {
  *                                 MOVELIST
  * ---------------------------------------------------------------------------
  */
-// [DONE]
+
 movelist *movelist_new(void) {
     movelist *M = malloc(sizeof(movelist));
     if (M == NULL) {
@@ -423,17 +477,17 @@ movelist *movelist_new(void) {
 
     return M;
 }
-// [DONE]
+
 int movelist_length(movelist *M) {
     return M->size;
 }
-// [DONE]
+
 void movelist_free(movelist *M) {
     free(M->array);
     free(M);
     return;
 }
-// [[DONE]]
+
 static void movelist_resize(movelist *M, int new_limit) {
     dbg_requires(new_limit >= M->size);
 
@@ -449,7 +503,7 @@ static void movelist_resize(movelist *M, int new_limit) {
 
     return;
 }
-// [DONE]
+
 static void movelist_append(movelist *M, move m) {
     if (M->size == M->limit-1)
         movelist_resize(M, M->limit * 2);
@@ -484,14 +538,9 @@ void movelist_print(movelist_t M) {
  * ---------------------------------------------------------------------------
  */
 
-// [TODO]
-static bitboard build_attack_map(position_t P, Whose whose) {
-    return BITBOARD_EMPTY;
-}
-// [DONE]
 static bitboard get_pawn_attack_map(square from, Whose whose, 
                                            position_t P) {
-    return PAWN_ATTACKS[from] & P->whose[THEIRS];
+    return PAWN_ATTACKS[whose][from] & P->whose[!whose];
 }
 static bitboard get_pawn_quiet_moves_map(square from, Whose whose, 
                                                 position_t P) {
@@ -502,7 +551,7 @@ static bitboard get_pawn_quiet_moves_map(square from, Whose whose,
 static movelist *generate_pawn_moves(movelist *M, square from, position_t P) {
     square to;
     bitboard captures = get_pawn_attack_map(from, OURS, P);
-    
+
     while ((to = bitboard_iter_first(&captures)) != INVALID_SQUARE) {
         move m = { PAWN, from, to, M_FLAG_CAPTURE };
         if (56 <= to && to < 64) {
@@ -535,19 +584,19 @@ static movelist *generate_pawn_moves(movelist *M, square from, position_t P) {
     square ep_square = position_get_en_passant(P, OURS);
     if (ep_square != INVALID_SQUARE) {
         bitboard ep_bitboard = square_to_bitboard(ep_square);
-        if (captures & ep_bitboard) {
-            move m = { PAWN, from, ep_square - 16, M_FLAG_EN_PASSANT };
+        if (PAWN_ATTACKS[OURS][from] & ep_bitboard) {
+            move m = { PAWN, from, ep_square, M_FLAG_EN_PASSANT };
             movelist_append(M, m);
         }
     }
 
     return M;
 }
-// [REVIEW]
+
 static bitboard get_knight_map(square from, Whose whose, position_t P) {
     return KNIGHT_ATTACKS[from] & ~P->whose[whose];
 }
-// [REVIEW]
+
 static movelist *generate_knight_moves(movelist *M, square from, position_t P) {
     square to;
     bitboard knight_map = get_knight_map(from, OURS, P);
@@ -566,7 +615,7 @@ static movelist *generate_knight_moves(movelist *M, square from, position_t P) {
 
     return M;
 }
-// [REVIEW]
+
 static bitboard get_diagonal_sliding_map(square from, Whose whose, position_t P) {
     bitboard diagonal_map, blockers, block;
     bool is_forward;
@@ -578,12 +627,13 @@ static bitboard get_diagonal_sliding_map(square from, Whose whose, position_t P)
         block = is_forward ? bitboard_bsf(blockers) : bitboard_bsr(blockers);
         diagonal_map |= RAYS[dir][from] & (block < 64 ? ~RAYS[dir][block] : BITBOARD_FULL);
     }
-    return diagonal_map & ~P->whose[whose];
+    return diagonal_map;
 }
-// [REVIEW]
+
 static movelist *generate_bishop_moves(movelist *M, square from, position_t P)  {
     square to;
-    bitboard bishop_map = get_diagonal_sliding_map(from, OURS, P);
+    bitboard bishop_map = get_diagonal_sliding_map(from, OURS, P) & 
+                          ~P->whose[OURS];
 
     bitboard captures = bishop_map & P->whose[THEIRS];
     while ((to = bitboard_iter_first(&captures)) != INVALID_SQUARE) {
@@ -599,7 +649,7 @@ static movelist *generate_bishop_moves(movelist *M, square from, position_t P)  
 
     return M;
 }
-// [REVIEW]
+
 static bitboard get_straight_sliding_map(square from, Whose whose, position_t P) {
     bitboard straight_map, blockers, block;
     bool is_forward;
@@ -612,13 +662,14 @@ static bitboard get_straight_sliding_map(square from, Whose whose, position_t P)
         straight_map |= RAYS[dir][from] & (block < 64 ? ~RAYS[dir][block] : BITBOARD_FULL);
     }
 
-    return straight_map & ~P->whose[whose];
+    return straight_map;
 }
 
-// [REVIEW]
+
 static movelist *generate_rook_moves(movelist *M, square from, position_t P) {
     square to;
-    bitboard rook_map = get_straight_sliding_map(from, OURS, P);
+    bitboard rook_map = get_straight_sliding_map(from, OURS, P) & 
+                        ~P->whose[OURS];
 
     bitboard captures = rook_map & P->whose[THEIRS];
     while ((to = bitboard_iter_first(&captures)) != INVALID_SQUARE) {
@@ -628,17 +679,18 @@ static movelist *generate_rook_moves(movelist *M, square from, position_t P) {
 
     bitboard quiet_moves = rook_map & ~P->whose[THEIRS];
     while ((to = bitboard_iter_first(&quiet_moves)) != INVALID_SQUARE) {
-        move m = { BISHOP, from, to, M_FLAG_QUIET };
+        move m = { ROOK, from, to, M_FLAG_QUIET };
         movelist_append(M, m);
     }
 
     return M;
 }
-// [REVIEW]
+
 static movelist *generate_queen_moves(movelist *M, square from, position_t P) {
     square to;
-    bitboard queen_map = get_diagonal_sliding_map(from, OURS, P) | 
-                         get_straight_sliding_map(from, OURS, P);
+    bitboard queen_map = (get_diagonal_sliding_map(from, OURS, P) | 
+                          get_straight_sliding_map(from, OURS, P)) &
+                          ~P->whose[OURS];
 
     bitboard captures = queen_map & P->whose[THEIRS];
     while ((to = bitboard_iter_first(&captures)) != INVALID_SQUARE) {
@@ -654,11 +706,11 @@ static movelist *generate_queen_moves(movelist *M, square from, position_t P) {
 
     return M;
 }
-// [REVIEW]
+
 static bitboard get_king_map(square from, Whose whose, position_t P) {
     return KING_ATTACKS[from] & ~P->whose[OURS];
 }
-// [REVIEW]
+
 static movelist *generate_king_moves(movelist *M, square from, position_t P) {
     square to;
     bitboard all = P->whose[OURS] | P->whose[THEIRS];
@@ -690,7 +742,44 @@ static movelist *generate_king_moves(movelist *M, square from, position_t P) {
 
     return M;
 }
+
 // [REVIEW]
+bitboard build_attack_map(position_t P, Whose whose) {
+    square from;
+    bitboard attacks = BITBOARD_EMPTY;
+
+    bitboard pawns = P->whose[whose] & P->pieces[PAWN];
+    while ((from = bitboard_iter_first(&pawns)) != INVALID_SQUARE) {
+        attacks |= PAWN_ATTACKS[whose][from];
+    }
+
+    bitboard knights = P->whose[whose] & P->pieces[KNIGHT];
+    while ((from = bitboard_iter_first(&knights)) != INVALID_SQUARE) {
+        attacks |= KNIGHT_ATTACKS[from];
+    }
+
+    bitboard bishops = P->whose[whose] & P->pieces[BISHOP];
+    while ((from = bitboard_iter_first(&bishops)) != INVALID_SQUARE) {
+        attacks |= get_diagonal_sliding_map(from, whose, P);
+    }
+
+    bitboard rooks = P->whose[whose] & P->pieces[ROOK];
+    while ((from = bitboard_iter_first(&rooks)) != INVALID_SQUARE) {
+        attacks |= get_straight_sliding_map(from, whose, P);
+    }
+
+    bitboard queens = P->whose[whose] & P->pieces[QUEEN];
+    while ((from = bitboard_iter_first(&queens)) != INVALID_SQUARE) {
+        attacks |= get_diagonal_sliding_map(from, whose, P);
+        attacks |= get_straight_sliding_map(from, whose, P);
+    }
+    
+    from = P->king[whose];
+    attacks |= KING_ATTACKS[from];
+
+    return attacks;
+}
+
 movelist *generate_moves(movelist *M, position_t P) {
     square from;
     bitboard our_pawns = P->whose[OURS] & P->pieces[PAWN];

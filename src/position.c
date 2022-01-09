@@ -18,16 +18,17 @@ const char PIECE_CHARS[2][6] = {
     { 'p', 'n', 'b', 'r', 'q', 'k' }
 };
 
-/* Gets the pawns from P->pieces[PAWN] */
+/** @brief Gets the pawns from P->pieces[PAWN] */
 static const bitboard PAWNS_MASK = 0x00FFFFFFFFFFFF00;
 
-/* En_passant flags for P->pieces[PAWN] */
+/** @brief En_passant flags for P->pieces[PAWN] */
 static const bitboard EN_PASSANT_MASKS[2] = { 0xFF00000000000000 , 
                                               0x00000000000000FF };
 
-/* Castling flags for P->castling */
+/** @brief Castling flags for P->castling */
 static const uint8_t CASTLING_MASKS[2][2] = { {0b1000, 0b0100}, {0b0010, 0b0001} };
 
+/** @brief FEN of the starting position of chess */
 static const char STARTING_FEN[] = 
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -37,7 +38,7 @@ static const char STARTING_FEN[] =
  * ---------------------------------------------------------------------------
  */
 
-/* Helper function for contract assertions */
+/** @brief Helper function for contract assertions */
 static bool is_position(position *P) {
     if (P == NULL)
         return false;
@@ -57,8 +58,6 @@ static bool is_position(position *P) {
     return no_color_overlap && no_pieces_overlap && all == all_pieces 
            && two_kings;
 }
-
-/** Interface functions */
 
 position *position_new(void) {
     position *P = malloc(sizeof(position));
@@ -286,18 +285,17 @@ void position_set_pieces(position_t P, Whose whose, Piece piece, bitboard b) {
 
 square position_get_en_passant(position_t P, Whose whose) {
     dbg_requires(is_position(P));
-    square offset = whose ? -16 : 16; // -16 if OURS, 16 if THEIRS
+    square offset = whose ? 16 : -16; // -16 if OURS, +16 if THEIRS
     bitboard en_passant_bb = P->pieces[PAWN] & EN_PASSANT_MASKS[whose];
     return bitboard_to_square(en_passant_bb) + offset;
 }
 
 void position_set_en_passant(position_t P, Whose whose, square to) {
-    dbg_requires(is_position(P));
     square s;
     if (whose == OURS)
-        s = to - 24;
-    else // whose == THEIRS
         s = to + 24;
+    else // whose == THEIRS
+        s = to - 24;
     P->pieces[PAWN] |= square_to_bitboard(s);
     return;
 }
@@ -374,7 +372,7 @@ void position_print(position *P) {
             continue;
         }
 
-        if (P->pieces[PAWN] & b) board[7 - r][f] = 'P';
+        if (P->pieces[PAWN] & PAWNS_MASK & b) board[7 - r][f] = 'P';
         else if (P->pieces[KNIGHT] & b) board[7 - r][f] = 'N';
         else if (P->pieces[BISHOP] & b) board[7 - r][f] = 'B';
         else if (P->pieces[ROOK] & b) board[7 - r][f] = 'R';

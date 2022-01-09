@@ -35,7 +35,7 @@ static const uint8_t FILE_LENGTH = 8;
 
 static const uint8_t BITBOARD_SIZE = 64;
 
-/* Masks used in divide-and-conquer algorithms regarding 64-bit words */
+/** @brief Masks used in divide-and-conquer algorithms regarding 64-bit words */
 static const uint64_t DQ1 = 0x5555555555555555;
 static const uint64_t DQ2 = 0x3333333333333333;
 static const uint64_t DQ3 = 0x0F0F0F0F0F0F0F0F;
@@ -183,7 +183,7 @@ square bitboard_iter_last(bitboard *b) {
     return s;
 }
 
-/* Divide-and-conquer algorithm using bitmasks */
+/** @brief Divide-and-conquer bit-reversal algorithm using bitmasks */
 bitboard bitboard_rotate(bitboard b) {
     b = ((b & DQ1) << 1) | ((b >> 1) & DQ1);
     b = ((b & DQ2) << 2) | ((b >> 2) & DQ2);
@@ -197,7 +197,7 @@ bitboard bitboard_rotate(bitboard b) {
 void bitboard_print(bitboard b) {
     char board[8][8];
     
-    /* Build array of chars */
+    // Build array of chars
     for (int r = 0; r < RANK_LENGTH; r++) {
         for (int f = 0; f < FILE_LENGTH; f++) {
             square s = square_calculate(r,f);
@@ -206,7 +206,7 @@ void bitboard_print(bitboard b) {
         }
     }
 
-    /* Print chars with appropriate spacing */
+    // Print chars with appropriate spacing
     for (int r = RANK_LENGTH - 1; r >= 0; r--) {
         for (int f = 0; f < FILE_LENGTH; f++) {
             printf("%c ", board[r][f]);

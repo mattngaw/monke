@@ -51,29 +51,29 @@ def generate_knight_moves():
         
     return knight_moves
 
-def generate_PAWN_MOVES():
-    PAWN_MOVES = []
+def generate_pawn_moves():
+    pawn_moves = []
     for sq in range(0, 8):
-        PAWN_MOVES.append(0)
+        pawn_moves.append(0)
     for sq in range(8, 56):
         src = 1 << sq
         moves = 0
         moves |= 1 << square(row(sq) + 1, col(sq))
         if 8 <= sq < 16: moves |= 1 << square(row(sq) + 2, col(sq))
-        PAWN_MOVES.append(moves)
+        pawn_moves.append(moves)
     for sq in range(56, 64):
-        PAWN_MOVES.append(0)
+        pawn_moves.append(0)
 
-    return PAWN_MOVES
+    return pawn_moves
 
-def generate_PAWN_ATTACKS():
-    PAWN_ATTACKS = []
+def generate_pawn_attacks():
+    pawn_attacks = []
     directions = [
-        (-1, 1), (1, 1)
+        (-1, -1), (1, -1)
     ]
-    for sq in range(0, 8):
-        PAWN_ATTACKS.append(0)
-    for sq in range(8, 56):
+    for sq in range(63, 55, -1):
+        pawn_attacks.append(0)
+    for sq in range(55, 7, -1):
         src = 1 << sq
         moves = 0
         for x, y in directions:
@@ -81,11 +81,13 @@ def generate_PAWN_ATTACKS():
             move_x = col(sq) + x
             if (0 <= move_y < 8) and (0 <= move_x < 8):
                 moves |= 1 << square(move_y, move_x)
-        PAWN_ATTACKS.append(moves)
-    for sq in range(56, 64):
-        PAWN_ATTACKS.append(0)
+        pawn_attacks.append(moves)
+    for sq in range(7, -1, -1):
+        pawn_attacks.append(0)
 
-    return PAWN_ATTACKS
+    pawn_attacks.reverse()
+
+    return pawn_attacks
 
 def main():
     print("\nPRINTING KNIGHT MOVES")
@@ -99,13 +101,13 @@ def main():
         print("{0:#0{1}x}".format(move,18) + ",")
 
     print("\nPRINTING PAWN MOVES")
-    PAWN_MOVES = generate_PAWN_MOVES()
-    for move in PAWN_MOVES:
+    pawn_moves = generate_pawn_moves()
+    for move in pawn_moves:
         print("{0:#0{1}x}".format(move,18) + ",")
 
     print("\nPRINTING PAWN ATTACKS")
-    PAWN_ATTACKS = generate_PAWN_ATTACKS()
-    for move in PAWN_ATTACKS:
+    pawn_attacks = generate_pawn_attacks()
+    for move in pawn_attacks:
         print("{0:#0{1}x}".format(move,18) + ",")
 
     

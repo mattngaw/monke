@@ -74,52 +74,22 @@ extern const char PIECE_CHARS[2][6];
  * ---------------------------------------------------------------------------
  */
 
-/**
- * @brief Dynamically allocates a new position
- * 
- * @return P
- */
+/** @brief Dynamically allocates a new position */
 position_t position_new(void);
 
-/**
- * @brief Frees a position
- * 
- * @param[in] P
- * @pre P != NULL
- */
+/** @brief Frees a position */
 void position_free(position_t P);
 
-/**
- * @brief Empties a position (no pieces, no flags set)
- * 
- * @param[in] P
- * @pre P != NULL
- */
+/** @brief Empties a position (no pieces, no flags set) */
 void position_clear(position_t P);
 
-/**
- * @brief Initializes a position to the starting position of a game
- * 
- * @param[in] P
- * @pre P != NULL
- */
+/** @brief Initializes a position to the starting position of a game */
 void position_init(position_t P);
 
-/**
- * @brief Initiliazes a position according to the given FEN string
- * 
- * @param[in] P
- * @param[in] fen
- * @pre P != NULL
- */
+/** @brief Initiliazes a position according to the given FEN string */
 void position_from_fen(position_t P, const char *fen);
 
-/** [TODO]
- * @brief Exports a string for a given position.
- * 
- * @param[in] P
- * @return A FEN string.
- */
+/** [TODO] @brief Exports a string for a given position. */
 char *position_to_fen(position_t P);
 
 /**
@@ -134,14 +104,7 @@ char *position_to_fen(position_t P);
  */
 bitboard position_get_pieces(position_t P, Whose whose, Piece piece);
 
-/**
- * @brief XORs the requested pieces with the given bitboard
- * 
- * @param[in] P
- * @param[in] whose
- * @param[in] piece
- * @pre P != NULL
- */
+/** @brief XORs the requested pieces with the given bitboard */
 void position_set_pieces(position_t P, Whose whose, Piece piece, bitboard b);
 
 /**
@@ -168,23 +131,10 @@ square position_get_en_passant(position_t P, Whose whose);
  */
 void position_set_en_passant(position_t P, Whose whose, square dpp_to);
 
-/**
- * @brief Resets all en_passant flags
- * 
- * @param[in] P
- * @pre P != NULL
- */
+/** @brief Resets all en_passant flags */
 void position_reset_en_passant(position_t P);
 
-/**
- * @brief Gets the singular bitboard with the king's square set to true
- * 
- * @param[in] P
- * @param[in] whose
- * @pre P != NULL
- * 
- * @return b
- */
+/** @brief Gets the singular bitboard with the king's square set to true */
 bitboard position_get_king(position_t P, Whose whose);
 
 /**
@@ -210,15 +160,7 @@ void position_set_king(position_t P, Whose whose, square s);
  */
 bool position_get_castling(position_t P, Whose whose, Castling castling);
 
-/**
- * @brief Sets the castling status of a given possesion for a certain side
- * 
- * @param[in] P
- * @param[in] whose
- * @param[in] castling
- * @param[in] can_castle
- * @pre P != NULL
- */
+/** @brief Sets the castling status of a given possesion for a certain side */
 void position_set_castling(position_t P, Whose whose, Castling castling, bool can_castle);
 
 /** @brief Rotate the position (rotates bitboards and swaps castling flags). */
