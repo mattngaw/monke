@@ -536,8 +536,7 @@ void move_print(move m, Color c) {
 static bool move_is_legal(move m, position *P) {
     position _P = *P;
     move_make(&_P, m);
-    bitboard their_attacks = build_attack_map(&_P, THEIRS);
-    return (bool) (~their_attacks & square_to_bitboard(_P.king[OURS]));
+    return !king_in_check(&_P, OURS);
 }
 
 /*
@@ -872,6 +871,20 @@ bitboard build_attack_map(position *P, Whose whose) {
     attacks |= KING_ATTACKS[from];
 
     return attacks;
+}
+
+bool king_in_check(position *P, Whose whose) {
+    return square_to_bitboard(P->king[whose]) & build_attack_map(P, !whose);
+}
+
+bool king_is_checkmated(position *P, movelist_t M, Whose whose) {
+    return M->size == 0 && king_in_check(P, whose);
+}
+
+GameState get_game_state(position *P, movelist_t M) {
+    if (M->size == 0) {
+        return king_in_check(P, OURS) ? CHECKMATE : DRAW;
+    } else return CONTINUE;
 }
 
 movelist *generate_moves(movelist *M, position *P) {

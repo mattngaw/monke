@@ -31,19 +31,32 @@ static int randrange(int lower, int upper) {
 void moves_tests(void) {
     char s[20];
     move m;
+    GameState G;
     position *P = position_new();
     position_clear(P);
-    position_from_fen(P, "k7/8/8/8/8/1r6/r7/4K3 w - - 0 1");
+    position_from_fen(P, "8/8/8/8/k7/4r3/2r5/K7 b - - 0 1");
 
     movelist_t M = movelist_new();
     
     while(true) {
         printf("\n");
         position_print(P);
-        printf("> ");
-        scanf("%s", s);
         movelist_clear(M);
         generate_moves(M, P);
+
+        G = get_game_state(P, M);
+        if (G == CHECKMATE) {
+            printf("Checkmate!\n");
+            break;
+        } else if (G == DRAW) {
+            printf("Draw!\n");
+            break;
+        } // G == CONTINUE
+
+        if (king_in_check(P, OURS)) printf("Check!\n");
+
+        printf("> ");
+        scanf("%s", s);
         if (is_numerical(s) && atoi(s) < M->size) {
             m = M->array[atoi(s)];
             printf("%d: ", atoi(s));

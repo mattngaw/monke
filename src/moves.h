@@ -10,6 +10,12 @@
 
 #include <stdbool.h>
  
+typedef enum GameState {
+    CONTINUE,
+    DRAW,
+    CHECKMATE
+} GameState;
+
 /** 
  * @brief Representation of a move 
  * 
@@ -104,6 +110,11 @@ void movelist_print(movelist_t M, Color c);
 
 /** @brief Returns all the squares attacked by the pieces of `whose` */
 bitboard build_attack_map(position *P, Whose whose);
+
+/** @brief Whether a king is in check or not */
+bool king_in_check(position *P, Whose whose);
+
+GameState get_game_state(position *P, movelist_t M);
 
 /** @brief Populates a movelist with all legal moves for OUR pieces */
 movelist_t generate_moves(movelist_t M, position *P);
