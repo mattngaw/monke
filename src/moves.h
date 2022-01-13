@@ -1,12 +1,11 @@
 /**
- * @file moves.c
+ * @file moves.h
  * @brief Provides an interface for generating and applying legal moves.
  */
 
 #ifndef _MOVES_H_
 #define _MOVES_H_
 
-#include "bits.h"
 #include "position.h"
 
 #include <stdbool.h>
@@ -69,11 +68,11 @@ extern const uint8_t M_FLAG_PROMOTION[5];   // 8, 9, 10, 11
  * ---------------------------------------------------------------------------
  */
 
-/** @brief Applies a pseudo-legal move to the position */
-void move_apply(position_t P, move m);
+/** @brief Applies a pseudo-legal move and returns the old position */
+position move_make(position *P, move m);
 
 /** @brief Prints a move in human-readable format */
-void move_print(move m);
+void move_print(move m, Color c);
 
 /*
  * ---------------------------------------------------------------------------
@@ -87,11 +86,15 @@ movelist_t movelist_new(void);
 /** @brief Gets the length of the array */
 int movelist_length(movelist_t M);
 
+/** @brief Empties the movelist */
+void movelist_clear(movelist_t M);
+
 /** @brief Frees a movelist */
 void movelist_free(movelist_t M);
 
+
 /** @brief Prints all the moves in the movelist */
-void movelist_print(movelist_t M);
+void movelist_print(movelist_t M, Color c);
 
 /*
  * ---------------------------------------------------------------------------
@@ -100,9 +103,9 @@ void movelist_print(movelist_t M);
  */
 
 /** @brief Returns all the squares attacked by the pieces of `whose` */
-bitboard build_attack_map(position_t P, Whose whose);
+bitboard build_attack_map(position *P, Whose whose);
 
 /** @brief Populates a movelist with all legal moves for OUR pieces */
-movelist_t generate_moves(movelist_t M, position_t P);
+movelist_t generate_moves(movelist_t M, position *P);
 
 #endif

@@ -18,6 +18,8 @@ const square INVALID_SQUARE = 64;
 const bitboard BITBOARD_EMPTY = 0;
 const bitboard BITBOARD_FULL = 0xFFFFFFFFFFFFFFFF;
 
+const uint8_t BITBOARD_SIZE = 64;
+
 const char *SQUARES_TO_STRINGS[64] = {
     "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1",
     "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
@@ -33,7 +35,6 @@ static const uint8_t RANK_LENGTH = 8;
 
 static const uint8_t FILE_LENGTH = 8;
 
-static const uint8_t BITBOARD_SIZE = 64;
 
 /** @brief Masks used in divide-and-conquer algorithms regarding 64-bit words */
 static const uint64_t DQ1 = 0x5555555555555555;

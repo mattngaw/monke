@@ -13,6 +13,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+const uint8_t NUM_COLORS = 2;
+const uint8_t NUM_WHOSE = 2;
+const uint8_t NUM_PIECES = 5; // Not including the king
+const uint8_t NUM_CASTLINGS = 2;
+
 const char PIECE_CHARS[2][6] = {
     { 'P', 'N', 'B', 'R', 'Q', 'K' },
     { 'p', 'n', 'b', 'r', 'q', 'k' }
@@ -82,7 +87,7 @@ void position_clear(position *P) {
     P->king[OURS] = P->king[THEIRS] = INVALID_SQUARE;
     P->halfmoves = P->fullmoves = 0;
     P->castling = 0b0000;
-    P->color = false;
+    P->color = WHITE;
     return;
 }
 
@@ -118,7 +123,7 @@ static void position_from_fen_pieces(position *P, char *pieces) {
     
     for (int i = 0; i < pieces_len; i++) {
         if (0x31 <= pieces[i] && pieces[i] <= 0x38) {
-            f += (uint8_t)(pieces[i] - 0x30);
+            f += (uint8_t) (pieces[i] - 0x30);
             dbg_assert(f <= 8);
         } else if (is_alpha(pieces[i])) {
             square s = square_calculate(r, f);
@@ -270,27 +275,27 @@ void position_from_fen(position *P, const char *fen) {
 char *position_to_fen(position *P);
 */
 
-bitboard position_get_pieces(position_t P, Whose whose, Piece piece) {
+bitboard position_get_pieces(position *P, Whose whose, Piece piece) {
     dbg_requires(is_position(P));
     bitboard b = P->whose[whose] & P->pieces[piece];
     return b;
 }
 
-void position_set_pieces(position_t P, Whose whose, Piece piece, bitboard b) {
+void position_set_pieces(position *P, Whose whose, Piece piece, bitboard b) {
     dbg_requires(is_position(P));
     P->whose[whose] ^= b;
     P->pieces[piece] ^= b;
     return;
 }
 
-square position_get_en_passant(position_t P, Whose whose) {
+square position_get_en_passant(position *P, Whose whose) {
     dbg_requires(is_position(P));
     square offset = whose ? 16 : -16; // -16 if OURS, +16 if THEIRS
     bitboard en_passant_bb = P->pieces[PAWN] & EN_PASSANT_MASKS[whose];
     return bitboard_to_square(en_passant_bb) + offset;
 }
 
-void position_set_en_passant(position_t P, Whose whose, square to) {
+void position_set_en_passant(position *P, Whose whose, square to) {
     square s;
     if (whose == OURS)
         s = to + 24;
@@ -300,29 +305,29 @@ void position_set_en_passant(position_t P, Whose whose, square to) {
     return;
 }
 
-void position_reset_en_passant(position_t P) {
+void position_reset_en_passant(position *P) {
     P->pieces[PAWN] &= PAWNS_MASK;
     return;
 }
 
-bitboard position_get_king(position_t P, Whose whose) {
+bitboard position_get_king(position *P, Whose whose) {
     dbg_requires(is_position(P));
     bitboard b = square_to_bitboard(P->king[whose]);
     return b;
 }
 
-void position_set_king(position_t P, Whose whose, square s) {
+void position_set_king(position *P, Whose whose, square s) {
     P->whose[OURS] ^= square_to_bitboard(P->king[whose]) | square_to_bitboard(s);
     P->king[whose] = s;
     return;
 }
 
-bool position_get_castling(position_t P, Whose whose, Castling castling) {
+bool position_get_castling(position *P, Whose whose, Castling castling) {
     bool can_castle = P->castling & CASTLING_MASKS[whose][castling];
     return can_castle;
 }
 
-void position_set_castling(position_t P, Whose whose, Castling castling, bool can_castle) {
+void position_set_castling(position *P, Whose whose, Castling castling, bool can_castle) {
     P->castling = (P->castling & ~CASTLING_MASKS[whose][castling]) | 
                   (CASTLING_MASKS[whose][castling] * can_castle);
     return;
@@ -354,36 +359,41 @@ void position_rotate(position *P) {
 }
 
 void position_print(position *P) {
-    dbg_requires(is_position(P));
+    // dbg_requires(is_position(P));
     char board[8][8];
     bitboard b;
     rank r;
     file f;
-    bool is_black;
-    for (square s = 0; s < 64; s++) {
+    Whose w;
+
+    for (square s = 0; s < BITBOARD_SIZE; s++) {
         b = square_to_bitboard(s);
         r = square_get_rank(s);
         f = square_get_file(s);
 
-        if (P->whose[OURS] & b) is_black = false;
-        else if (P->whose[THEIRS] & b) is_black = true;
-        else {
+        if (b & ~(P->whose[OURS] | P->whose[THEIRS])) {
             board[7 - r][f] = '.';
             continue;
+        } else {
+            w = b & P->whose[OURS] ? OURS : THEIRS;
         }
 
-        if (P->pieces[PAWN] & PAWNS_MASK & b) board[7 - r][f] = 'P';
-        else if (P->pieces[KNIGHT] & b) board[7 - r][f] = 'N';
-        else if (P->pieces[BISHOP] & b) board[7 - r][f] = 'B';
-        else if (P->pieces[ROOK] & b) board[7 - r][f] = 'R';
-        else if (P->pieces[QUEEN] & b) board[7 - r][f] = 'Q';
-        else if (P->king[OURS] == s || P->king[THEIRS] == s) board[7 - r][f] = 'K';
+        if (P->pieces[PAWN] & PAWNS_MASK & b) 
+            board[7 - r][f] = PIECE_CHARS[w ^ P->color][PAWN];
+        else if (P->pieces[KNIGHT] & b) 
+            board[7 - r][f] = PIECE_CHARS[w ^ P->color][KNIGHT];
+        else if (P->pieces[BISHOP] & b) 
+            board[7 - r][f] = PIECE_CHARS[w ^ P->color][BISHOP];
+        else if (P->pieces[ROOK] & b)
+            board[7 - r][f] = PIECE_CHARS[w ^ P->color][ROOK];
+        else if (P->pieces[QUEEN] & b)
+            board[7 - r][f] = PIECE_CHARS[w ^ P->color][QUEEN];
+        else if (P->king[OURS] == s || P->king[THEIRS] == s)
+            board[7 - r][f] = PIECE_CHARS[w ^ P->color][KING];
         else {
             printf("position_print error\n");
             exit(1);
         }
-
-        if (is_black) board[7 - r][f] += 0x20;
     }
     printf("CURRENT POSITION:\n");
     for (r = 0; r < 8; r++) {
@@ -396,11 +406,13 @@ void position_print(position *P) {
     if (P->color) printf("Black to move.\n");
     else printf("White to move.\n");
 
-    printf("W: ");
+    if (P->color == WHITE) printf("W: ");
+    else printf("B: ");
     if (P->castling & CASTLING_MASKS[OURS][KINGSIDE]) printf("O-O ");
     if (P->castling & CASTLING_MASKS[OURS][QUEENSIDE]) printf("O-O-O ");
-    printf("B: ");
+    if (P->color == WHITE) printf("B: ");
+    else printf("W: ");
     if (P->castling & CASTLING_MASKS[THEIRS][KINGSIDE]) printf("O-O ");
     if (P->castling & CASTLING_MASKS[THEIRS][QUEENSIDE]) printf("O-O-O ");
-    printf("\n\n");
+    printf("\n");
 }

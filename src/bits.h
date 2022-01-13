@@ -61,6 +61,9 @@ extern const square INVALID_SQUARE;
 extern const bitboard BITBOARD_EMPTY;
 extern const bitboard BITBOARD_FULL;
 
+/** @brief Length of a bitboard word, number of bits */
+extern const uint8_t BITBOARD_SIZE;
+
 /** 
  * @brief Maps squares to their string representation 
  * 

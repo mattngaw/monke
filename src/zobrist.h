@@ -6,9 +6,9 @@
 #ifndef _ZOBRIST_H_
 #define _ZOBRIST_H_
 
-#include "bits.h"
 #include "position.h"
 
+/** @brief Namespace for hashes */
 typedef uint64_t zhash;
 
 /** @brief Initializes the seed and pseudo-random numbers for hashing */

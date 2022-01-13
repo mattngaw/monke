@@ -1,6 +1,6 @@
 /**
  * @file moves.c
- * @brief Provides an interface for generating and applying moves.
+ * @brief Provides the implementation for generating and applying moves.
  */
 
 #include "bits.h"
@@ -32,6 +32,7 @@ const uint8_t M_FLAG_DPP = 0x01;
 const uint8_t M_FLAG_CASTLING[2] = { 0x02, 0x03 };
 const uint8_t M_FLAG_CAPTURE = 0x04;
 const uint8_t M_FLAG_EN_PASSANT = 0x05; // Includes M_FLAG_CAPTURE
+const uint8_t M_FLAG_IS_PROMOTION = 0x08;
 const uint8_t M_FLAG_PROMOTION[5] = { 0x00, 0x08, 0x09, 0x0A, 0x0B };
 
 /** @brief Masks for the important squares regarding castling */
@@ -380,19 +381,49 @@ static bool move_is_null(move m) {
     return m.piece == 0 && m.from == 0 && m.to == 0 && m.flags == 0;
 }
 
-void move_apply(position_t P, move m) {
+position move_make(position *P, move m) {
+    position prev_P = *P;
     bitboard from_bb = square_to_bitboard(m.from);
     bitboard to_bb = square_to_bitboard(m.to);
     bitboard move_bb = from_bb | to_bb;;
 
+    // All moves reset the en_passant flags
     position_reset_en_passant(P);
 
+    // Castling
     if (m.flags == M_FLAG_CASTLING[KINGSIDE]) {
-        
+        if (P->color == WHITE) {
+            P->king[OURS] += 2;
+            P->pieces[ROOK] ^= square_to_bitboard(F1) | square_to_bitboard(H1);
+            P->whose[OURS] ^= square_to_bitboard(E1) | square_to_bitboard(F1) |
+                              square_to_bitboard(G1) | square_to_bitboard(H1);
+        } else { // P.color == BLACK
+            P->king[OURS] -= 2;
+            P->pieces[ROOK] ^= square_to_bitboard(f8) | square_to_bitboard(h8);
+            P->whose[OURS] ^= square_to_bitboard(e8) | square_to_bitboard(f8) |
+                              square_to_bitboard(g8) | square_to_bitboard(h8);
+        }
+        position_set_castling(P, OURS, KINGSIDE, false);
+        return prev_P;
+    } else if (m.flags == M_FLAG_CASTLING[QUEENSIDE]) {
+        if (P->color == WHITE) {
+            P->king[OURS] -= 2;
+            P->pieces[ROOK] ^= square_to_bitboard(A1) | square_to_bitboard(D1);
+            P->whose[OURS] ^= square_to_bitboard(A1) | square_to_bitboard(C1) |
+                              square_to_bitboard(D1) | square_to_bitboard(E1);
+        } else { // P.color == BLACK
+            P->king[OURS] += 2;
+            P->pieces[ROOK] ^= square_to_bitboard(a8) | square_to_bitboard(d8);
+            P->whose[OURS] ^= square_to_bitboard(a8) | square_to_bitboard(c8) |
+                              square_to_bitboard(d8) | square_to_bitboard(e8);
+        }
+        position_set_castling(P, OURS, KINGSIDE, false);
+        return prev_P;
     }
 
+    // Non-castling moves
     P->whose[OURS] ^= move_bb;
-    P->pieces[m.piece] ^= from_bb;
+    if (m.piece != KING) P->pieces[m.piece] ^= from_bb;
 
     if (m.flags == M_FLAG_DPP) {
         position_set_en_passant(P, THEIRS, m.to);
@@ -408,10 +439,36 @@ void move_apply(position_t P, move m) {
                 break;
             }
         }
+        m.flags &= ~M_FLAG_CAPTURE;
     }
 
-    P->pieces[m.piece] ^= to_bb;
-    return;
+    if (m.piece == ROOK) {
+        if ((m.from == A1 && P->color == WHITE) ||
+            (m.from == a8 && P->color == BLACK)) {
+            position_set_castling(P, OURS, QUEENSIDE, false);
+        }
+        else if ((m.from == H1 && P->color == WHITE) ||
+                 (m.from == h8 && P->color == BLACK)) {
+            position_set_castling(P, OURS, KINGSIDE, false);
+        }
+    }
+
+    if (m.flags == M_FLAG_PROMOTION[KNIGHT])
+        P->pieces[KNIGHT] ^= to_bb;
+    else if (m.flags == M_FLAG_PROMOTION[BISHOP])
+        P->pieces[BISHOP] ^= to_bb;
+    else if (m.flags == M_FLAG_PROMOTION[ROOK])
+        P->pieces[ROOK] ^= to_bb;
+    else if (m.flags == M_FLAG_PROMOTION[QUEEN])
+        P->pieces[QUEEN] ^= to_bb;
+    else if (m.piece == KING) {
+        P->king[OURS] = m.to;
+        position_set_castling(P, OURS, KINGSIDE, false);
+        position_set_castling(P, OURS, QUEENSIDE, false);
+    }
+    else P->pieces[m.piece] ^= to_bb;
+
+    return prev_P;
 }
 
 /** @brief Prints a move in bitboard form, with to and from squares labelled */
@@ -421,7 +478,7 @@ static void move_print_bb(move m) {
         for (int f = 0; f < 8; f++) {
             if (square_calculate(r, f) == m.to) board[r][f] = 'T';
             else if (square_calculate(r, f) == m.from) board[r][f] = 'F';
-            else board[r][f] = '.';
+            else board[r][f] =  '.';
         }
     }
     for (int r = 8 - 1; r >= 0; r--) {
@@ -433,7 +490,10 @@ static void move_print_bb(move m) {
     printf("\n");
 }
 
-void move_print(move m) {
+void move_print(move m, Color c) {
+    const char *from;
+    const char *to;
+
     if (m.flags == M_FLAG_CASTLING[KINGSIDE]) {
         printf("O-O\n");
         return;
@@ -443,16 +503,41 @@ void move_print(move m) {
         return;
     }
     
-    char piece_char = PIECE_CHARS[OURS][m.piece];
-    const char *from = SQUARES_TO_STRINGS[m.from];
-    const char *to = SQUARES_TO_STRINGS[m.to];
+    char piece_char = PIECE_CHARS[c][m.piece];
+    if (c == WHITE) {
+        from = SQUARES_TO_STRINGS[m.from];
+        to = SQUARES_TO_STRINGS[m.to];
+    } else { // c -- BLACK
+        from = SQUARES_TO_STRINGS[63 - m.from];
+        to = SQUARES_TO_STRINGS[63 - m.to];
+    }
 
     printf("%c", piece_char);
     printf("%s", from);
-    if (m.flags & M_FLAG_CAPTURE) printf("x");
-    printf("%s:\n", to);
+    if (m.flags & M_FLAG_CAPTURE) {
+        printf("x");
+        m.flags &= ~M_FLAG_CAPTURE;
+    }
+    printf("%s", to);
+    if (m.flags == M_FLAG_PROMOTION[KNIGHT])
+        printf("=%c", PIECE_CHARS[c][KNIGHT]);
+    else if (m.flags == M_FLAG_PROMOTION[BISHOP])
+        printf("=%c", PIECE_CHARS[c][BISHOP]);
+    else if (m.flags == M_FLAG_PROMOTION[ROOK])
+        printf("=%c", PIECE_CHARS[c][ROOK]);
+    else if (m.flags == M_FLAG_PROMOTION[QUEEN])
+        printf("=%c", PIECE_CHARS[c][QUEEN]);
+
+    printf("\n");
 
     return;
+}
+
+static bool move_is_legal(move m, position *P) {
+    position _P = *P;
+    move_make(&_P, m);
+    bitboard their_attacks = build_attack_map(&_P, THEIRS);
+    return (bool) (~their_attacks & square_to_bitboard(_P.king[OURS]));
 }
 
 /*
@@ -480,6 +565,11 @@ movelist *movelist_new(void) {
 
 int movelist_length(movelist *M) {
     return M->size;
+}
+
+void movelist_clear(movelist_t M) {
+    M->size = 0;
+    return;
 }
 
 void movelist_free(movelist *M) {
@@ -524,10 +614,10 @@ static move movelist_pop(movelist *M) {
     return M->array[M->size--];
 }
 
-void movelist_print(movelist_t M) {
+void movelist_print(movelist_t M, Color c) {
     for (int i = 0; i < M->size; i++) {
         printf("%d - ", i);
-        move_print(M->array[i]);
+        move_print(M->array[i], c);
     }
     return;
 }
@@ -539,16 +629,16 @@ void movelist_print(movelist_t M) {
  */
 
 static bitboard get_pawn_attack_map(square from, Whose whose, 
-                                           position_t P) {
+                                           position *P) {
     return PAWN_ATTACKS[whose][from] & P->whose[!whose];
 }
 static bitboard get_pawn_quiet_moves_map(square from, Whose whose, 
-                                                position_t P) {
+                                                position *P) {
     bitboard all = P->whose[OURS] | P->whose[THEIRS];
     return PAWN_MOVES[from] & ~all & ~((all & ~square_to_bitboard(from)) << 8);
 }
 // [REVIEW]
-static movelist *generate_pawn_moves(movelist *M, square from, position_t P) {
+static movelist *generate_pawn_moves(movelist *M, square from, position *P) {
     square to;
     bitboard captures = get_pawn_attack_map(from, OURS, P);
 
@@ -558,7 +648,7 @@ static movelist *generate_pawn_moves(movelist *M, square from, position_t P) {
             for (Piece p = KNIGHT; p <= QUEEN; p++) {
                 m.flags |= M_FLAG_PROMOTION[p];
                 movelist_append(M, m);
-                m.flags &= ~M_FLAG_PROMOTION[p];
+                m.flags = M_FLAG_CAPTURE;
             }
         } else {
             movelist_append(M, m);
@@ -593,11 +683,11 @@ static movelist *generate_pawn_moves(movelist *M, square from, position_t P) {
     return M;
 }
 
-static bitboard get_knight_map(square from, Whose whose, position_t P) {
+static bitboard get_knight_map(square from, Whose whose, position *P) {
     return KNIGHT_ATTACKS[from] & ~P->whose[whose];
 }
 
-static movelist *generate_knight_moves(movelist *M, square from, position_t P) {
+static movelist *generate_knight_moves(movelist *M, square from, position *P) {
     square to;
     bitboard knight_map = get_knight_map(from, OURS, P);
 
@@ -616,7 +706,7 @@ static movelist *generate_knight_moves(movelist *M, square from, position_t P) {
     return M;
 }
 
-static bitboard get_diagonal_sliding_map(square from, Whose whose, position_t P) {
+static bitboard get_diagonal_sliding_map(square from, Whose whose, position *P) {
     bitboard diagonal_map, blockers, block;
     bool is_forward;
     diagonal_map = BITBOARD_EMPTY;
@@ -630,7 +720,7 @@ static bitboard get_diagonal_sliding_map(square from, Whose whose, position_t P)
     return diagonal_map;
 }
 
-static movelist *generate_bishop_moves(movelist *M, square from, position_t P)  {
+static movelist *generate_bishop_moves(movelist *M, square from, position *P)  {
     square to;
     bitboard bishop_map = get_diagonal_sliding_map(from, OURS, P) & 
                           ~P->whose[OURS];
@@ -650,7 +740,7 @@ static movelist *generate_bishop_moves(movelist *M, square from, position_t P)  
     return M;
 }
 
-static bitboard get_straight_sliding_map(square from, Whose whose, position_t P) {
+static bitboard get_straight_sliding_map(square from, Whose whose, position *P) {
     bitboard straight_map, blockers, block;
     bool is_forward;
     straight_map = BITBOARD_EMPTY;
@@ -666,7 +756,7 @@ static bitboard get_straight_sliding_map(square from, Whose whose, position_t P)
 }
 
 
-static movelist *generate_rook_moves(movelist *M, square from, position_t P) {
+static movelist *generate_rook_moves(movelist *M, square from, position *P) {
     square to;
     bitboard rook_map = get_straight_sliding_map(from, OURS, P) & 
                         ~P->whose[OURS];
@@ -686,7 +776,7 @@ static movelist *generate_rook_moves(movelist *M, square from, position_t P) {
     return M;
 }
 
-static movelist *generate_queen_moves(movelist *M, square from, position_t P) {
+static movelist *generate_queen_moves(movelist *M, square from, position *P) {
     square to;
     bitboard queen_map = (get_diagonal_sliding_map(from, OURS, P) | 
                           get_straight_sliding_map(from, OURS, P)) &
@@ -707,13 +797,12 @@ static movelist *generate_queen_moves(movelist *M, square from, position_t P) {
     return M;
 }
 
-static bitboard get_king_map(square from, Whose whose, position_t P) {
+static bitboard get_king_map(square from, Whose whose, position *P) {
     return KING_ATTACKS[from] & ~P->whose[OURS];
 }
 
-static movelist *generate_king_moves(movelist *M, square from, position_t P) {
+static movelist *generate_king_moves(movelist *M, square from, position *P) {
     square to;
-    bitboard all = P->whose[OURS] | P->whose[THEIRS];
     bitboard king_map = get_king_map(from, OURS, P);
     
     bitboard captures = king_map & P->whose[THEIRS];
@@ -728,14 +817,19 @@ static movelist *generate_king_moves(movelist *M, square from, position_t P) {
         movelist_append(M, m);
     }
 
+    bitboard all = P->whose[OURS] | P->whose[THEIRS];
+    bitboard their_attacks = build_attack_map(P, THEIRS);
+
     if (position_get_castling(P, OURS, KINGSIDE) && 
-        bitboard_is_empty(CASTLING_MASK[KINGSIDE] & all)) {
+        bitboard_is_empty(CASTLING_MASK[KINGSIDE] & all) &&
+        bitboard_is_empty(CASTLING_MASK[KINGSIDE] & their_attacks)) {
         move m = { KING, 0, 0, M_FLAG_CASTLING[KINGSIDE] };
         movelist_append(M, m);
     }
 
     if (position_get_castling(P, OURS, QUEENSIDE) && 
-        bitboard_is_empty(CASTLING_MASK[QUEENSIDE] & all)) {
+        bitboard_is_empty(CASTLING_MASK[QUEENSIDE] & all) &&
+        bitboard_is_empty(CASTLING_MASK[KINGSIDE] & their_attacks)) {
         move m = { KING, 0, 0, M_FLAG_CASTLING[QUEENSIDE] };
         movelist_append(M, m);
     }
@@ -744,7 +838,7 @@ static movelist *generate_king_moves(movelist *M, square from, position_t P) {
 }
 
 // [REVIEW]
-bitboard build_attack_map(position_t P, Whose whose) {
+bitboard build_attack_map(position *P, Whose whose) {
     square from;
     bitboard attacks = BITBOARD_EMPTY;
 
@@ -780,35 +874,43 @@ bitboard build_attack_map(position_t P, Whose whose) {
     return attacks;
 }
 
-movelist *generate_moves(movelist *M, position_t P) {
+movelist *generate_moves(movelist *M, position *P) {
+    dbg_requires(M->size == 0);
+    movelist_t _M = movelist_new();
+
     square from;
     bitboard our_pawns = P->whose[OURS] & P->pieces[PAWN];
     while ((from = bitboard_iter_first(&our_pawns)) != INVALID_SQUARE) {
-        generate_pawn_moves(M, from, P);
+        generate_pawn_moves(_M, from, P);
     }
 
     bitboard our_knights = P->whose[OURS] & P->pieces[KNIGHT];
     while ((from = bitboard_iter_first(&our_knights)) != INVALID_SQUARE) {
-        generate_knight_moves(M, from, P);
+        generate_knight_moves(_M, from, P);
     }
 
     bitboard our_bishops = P->whose[OURS] & P->pieces[BISHOP];
     while ((from = bitboard_iter_first(&our_bishops)) != INVALID_SQUARE) {
-        generate_bishop_moves(M, from, P);
+        generate_bishop_moves(_M, from, P);
     }
 
     bitboard our_rooks = P->whose[OURS] & P->pieces[ROOK];
     while ((from = bitboard_iter_first(&our_rooks)) != INVALID_SQUARE) {
-        generate_rook_moves(M, from, P);
+        generate_rook_moves(_M, from, P);
     }
 
     bitboard our_queens = P->whose[OURS] & P->pieces[QUEEN];
     while ((from = bitboard_iter_first(&our_queens)) != INVALID_SQUARE) {
-        generate_queen_moves(M, from, P);
+        generate_queen_moves(_M, from, P);
     }
     
     from = P->king[OURS];
-    generate_king_moves(M, from, P);
+    generate_king_moves(_M, from, P);
+
+    for (int i = 0; i < _M->size; i++) {
+        if (move_is_legal(_M->array[i], P))
+            movelist_append(M, _M->array[i]);
+    }
 
     return M;
 }

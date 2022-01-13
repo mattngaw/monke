@@ -10,7 +10,7 @@
 #include <string.h>
 
 void position_tests(void) {
-    position_t P = position_new();
+    position *P = position_new();
 
     position_init(P);
     position_print(P);

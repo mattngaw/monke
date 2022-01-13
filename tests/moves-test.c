@@ -3,44 +3,70 @@
  * @brief Tests for the moves interface.
  */
 
-#include "../src/moves.h"
 #include "../src/position.h"
+#include "../src/moves.h"
 
 #include <assert.h>
+#include <stdbool.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
+
+static bool is_numerical(char *str) {
+    int len = strlen(str);
+    for (int i = 0; i < len; i++) {
+        if ('0' > str[i] || str[i] > '9') return false;
+    }
+    return true;
+}
+
+static int randrange(int lower, int upper) {
+    int n;
+    srand(time(NULL));
+    printf("%d\n", (n = rand()));
+    return (n % (upper - lower + 1)) + lower;
+}
 
 void moves_tests(void) {
-    position_t P = position_new();
-    position_init(P);
-
-    P->whose[OURS] ^= square_to_bitboard(E2) | square_to_bitboard(E4);
-    P->pieces[PAWN] ^= square_to_bitboard(E2) | square_to_bitboard(E4);
-
-    P->whose[OURS] ^= square_to_bitboard(E4) | square_to_bitboard(E5);
-    P->pieces[PAWN] ^= square_to_bitboard(E4) | square_to_bitboard(E5);
-
-    P->whose[OURS] ^= square_to_bitboard(E5) | square_to_bitboard(E6);
-    P->pieces[PAWN] ^= square_to_bitboard(E5) | square_to_bitboard(E6);
-
-    P->whose[OURS] ^= square_to_bitboard(D2) | square_to_bitboard(D4);
-    P->pieces[PAWN] ^= square_to_bitboard(D2) | square_to_bitboard(D4);
-
-    P->whose[OURS] ^= square_to_bitboard(F1) | square_to_bitboard(C4);
-    P->pieces[BISHOP] ^= square_to_bitboard(F1) | square_to_bitboard(C4);
-
-    P->whose[OURS] ^= square_to_bitboard(G1) | square_to_bitboard(F3);
-    P->pieces[KNIGHT] ^= square_to_bitboard(G1) | square_to_bitboard(F3);
-    position_print(P);
+    char s[20];
+    move m;
+    position *P = position_new();
+    position_clear(P);
+    position_from_fen(P, "k7/8/8/8/8/1r6/r7/4K3 w - - 0 1");
 
     movelist_t M = movelist_new();
-    generate_moves(M, P);
-    movelist_print(M);
+    
+    while(true) {
+        printf("\n");
+        position_print(P);
+        printf("> ");
+        scanf("%s", s);
+        movelist_clear(M);
+        generate_moves(M, P);
+        if (is_numerical(s) && atoi(s) < M->size) {
+            m = M->array[atoi(s)];
+            printf("%d: ", atoi(s));
+            move_print(m, P->color);
+            move_make(P, m);
+            position_rotate(P);
+        } else if (strcmp(s, "random") == 0) {
+            int k = randrange(0, M->size-1);
+            m = M->array[k];
+            printf("%d: ", k);
+            move_print(m, P->color);
+            move_make(P, m);
+            position_rotate(P);
+        } else if (strcmp(s, "print") == 0) {
+            movelist_print(M, P->color);
+        } else if (strcmp(s, "quit") == 0) {
+            printf("Quitting!\n\n");
+            break;
+        } else {
+            printf("Invalid response\n");
+        }
+    }
 
-    move_apply(P, M->array[10]);
-    position_print(P);
-
-    movelist_free(M);
     position_free(P);
 
     return;
